@@ -4,31 +4,17 @@ This document lists features and improvements for the Media Request application.
 
 **Constraints (do not break):** Client-side only; no server-side persistence. Dock and player must remain usable in the same browser/process (e.g. both in OBS or both in Chrome). See [ARCHITECTURE.md](ARCHITECTURE.md).
 
----
+## Phase 1: Spin the Wheel
 
-## Phase 1: Queue and UX
-
-- **Queue persistence (optional)**  
-  Already partially in place: persist queue to `localStorage` and restore on reload (order only; "now playing" not restored). Harden and optionally add a "clear saved queue" control.
-
-- **Support youtu.be short URLs**  
-  Accept `https://youtu.be/VIDEO_ID` in addition to `https://www.youtube.com/watch?v=VIDEO_ID` for `!sr` and the dock input. Parse and normalise to video ID so queue and player logic stay unchanged.
-
-- **Clear queue button**  
-  Already present; ensure it clears in-memory and persisted queue and does not send invalid commands to the player.
-
-- **Skip / remove item**  
-  Allow the streamer to skip the current video or remove an item from the queue. Dock sends LOAD_VIDEO/PLAY for the next item (or idles). No server round-trip.
-
-- **Reorder queue (optional)**  
-  Drag-and-drop or up/down controls to reorder the queue in the dock. Queue remains in-memory + optional localStorage; no server.
+- **Spin the Wheel – player overlay**  
+  When spin is triggered, dock sends spin-related messages (e.g. SPIN_START); player shows spinner overlay (dimmed video + wheel/spinner animation); dock sends winner (LOAD_VIDEO); player hides overlay and plays winner. SPIN_START / SPIN_END (or equivalent) and player overlay UI. Random pick from queue + SPIN button and tab are already in place; this is the optional player-side visual. All client-side.
 
 ---
 
 ## Phase 2: Polish and reliability
 
 - **Connection and error UX**  
-  Clear states: Waiting for player, Connected, Disconnected. Surface Twitch connection errors in the dock (e.g. "Twitch disconnected", "Invalid token" if auth is added later). Do not send playback commands when player is disconnected.
+  Player connection states (Waiting / Connected / Disconnected) and no commands when disconnected are in place. Optional: surface Twitch connection errors more clearly in the dock (e.g. "Twitch disconnected").
 
 - **Basic validation**  
   Validate YouTube URLs and video IDs before enqueueing (e.g. length, allowed characters). Optionally debounce or throttle rapid `!sr` from the same user to avoid accidental spam (client-side only).
@@ -38,6 +24,8 @@ This document lists features and improvements for the Media Request application.
 
 - **Testing**  
   Add unit tests for URL parsing, queue logic, and message construction. Optional: E2E tests (same process) for dock + player flow. See ARCHITECTURE.md for testing approach.
+
+
 
 ---
 
@@ -49,9 +37,6 @@ This document lists features and improvements for the Media Request application.
 - **History / recently played**  
   Optional list of recently played video IDs in the dock (in-memory or `localStorage`), for reference only. No server, no analytics backend.
 
-- **Pause / resume and seek from dock**  
-  Buttons or controls in the dock to pause, resume, or seek the current video. Dock sends existing PAUSE / PLAY / SEEK messages; no new protocol.
-
 ---
 
 ## Explicitly out of scope
@@ -62,6 +47,8 @@ This document lists features and improvements for the Media Request application.
 - Server relay for cross-process communication (e.g. dock in Chrome, player in OBS).
 - Moderation backend or bot bans.
 - Analytics or history stored on a server.
+- **YouTube search by text:** Resolving a text query to a video ID requires YouTube Data API `search.list`; the key must not live in the client. Out of scope or later with a server-side proxy or secured API key.
+- **Video duration** in queue or Now Playing: oEmbed does not provide duration; YouTube Data API `videos.list` does (with API key). Omit duration or show "–" unless a secured key or server is introduced.
 
 If a feature would require server-side state or a new backend service, it does not belong in the current product direction; revisit ARCHITECTURE and this roadmap before adding it.
 

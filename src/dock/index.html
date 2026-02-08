@@ -3,42 +3,96 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Media Request — Dock</title>
+  <title>Song Requests</title>
   <link rel="stylesheet" href="dock.css" />
   <script src="https://cdn.jsdelivr.net/npm/comfy.js@1.1.6/dist/comfy.min.js"></script>
 </head>
 <body>
-  <h1>Media Request — Dock</h1>
-  <p id="statusText" class="status waiting">🟡 Waiting for player</p>
+  <header class="dock-header">
+    <h1 class="dock-title">Song Requests</h1>
+    <span id="queueCount" class="queue-count">0 in queue</span>
+  </header>
 
-  <div class="playback-controls">
-    <button id="startQueue" type="button">Start queue</button>
-    <button id="stopQueue" type="button">Stop queue</button>
-    <button id="skipNext" type="button">Skip to next</button>
+  <div class="tabs" role="tablist">
+    <button type="button" class="tab active" id="tabQueue" role="tab" aria-selected="true" aria-controls="panelQueue">Queue</button>
+    <button type="button" class="tab" id="tabSpinner" role="tab" aria-selected="false" aria-controls="panelSpinner">Spin the Wheel</button>
   </div>
 
-  <div class="twitch-section">
-    <p><span id="twitchChannelLabel">Twitch: listening to #adjstreams (anonymous).</span> <span id="twitchStatus">Connecting…</span></p>
-    <button id="twitchDisconnect">Disconnect from Twitch</button>
+  <div id="panelQueue" class="tab-panel active" role="tabpanel">
+    <section class="now-playing" id="nowPlayingCard">
+      <h2 class="section-heading">Now Playing</h2>
+      <div class="now-playing-content">
+        <div class="now-playing-thumb" id="nowPlayingThumb"></div>
+        <div class="now-playing-info">
+          <p class="now-playing-title" id="nowPlayingTitle">—</p>
+          <p class="now-playing-requested" id="nowPlayingRequestedBy">Requested by —</p>
+          <div class="progress-wrap">
+            <div class="progress-bar" id="progressBar"><span class="progress-fill" id="progressFill"></span></div>
+            <span class="progress-times"><span id="progressCurrent">0:00</span> / <span id="progressDuration">0:00</span></span>
+          </div>
+          <div class="now-playing-controls">
+            <button type="button" id="stopQueue" class="icon-btn" title="Pause">Pause</button>
+            <button type="button" id="startQueue" class="icon-btn" title="Play">Play</button>
+            <button type="button" id="skipNext" class="icon-btn" title="Skip">Skip</button>
+            <div class="volume-wrap">
+              <label for="volumeSlider" class="visually-hidden">Volume</label>
+              <input type="range" id="volumeSlider" min="0" max="100" value="100" />
+            </div>
+            <label class="show-video-wrap">
+              <input type="checkbox" id="showVideoToggle" />
+              <span>Show video</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </section>
 
-    <div class="settings-section">
-      <label for="configChannel">Twitch channel</label>
-      <input type="text" id="configChannel" placeholder="adjstreams" />
-      <label for="configCommand">Command prefix (without !)</label>
-      <input type="text" id="configCommand" placeholder="sr" />
-      <button id="configSave">Save and reconnect</button>
+    <section class="add-song">
+      <h2 class="section-heading">Add Song</h2>
+      <div class="add-song-row">
+        <input type="text" id="urlInput" placeholder="YouTube URL or search..." aria-label="YouTube URL" />
+        <button type="button" id="addUrl" class="btn-add" title="Add">+</button>
+      </div>
+      <p class="connection-status" id="statusText">Waiting for player</p>
+      <div class="toolbar">
+        <button type="button" id="clearQueue" class="toolbar-btn" title="Clear queue">Clear</button>
+        <button type="button" id="settingsToggle" class="toolbar-btn" title="Settings">Settings</button>
+      </div>
+    </section>
+
+    <section class="queue-section">
+      <h2 class="section-heading">Queue</h2>
+      <ul id="queueList" class="queue-list">
+        <li class="queue-empty">Queue empty</li>
+      </ul>
+    </section>
+  </div>
+
+  <div id="panelSpinner" class="tab-panel" role="tabpanel" hidden>
+    <section class="spin-section">
+      <h2 class="section-heading">Spin the Wheel</h2>
+      <div class="spin-placeholder" id="spinPlaceholder">
+        <p>Pick a random song from the queue.</p>
+        <button type="button" id="spinBtn" class="btn-spin">SPIN!</button>
+      </div>
+    </section>
+  </div>
+
+  <aside id="settingsPanel" class="settings-panel" aria-hidden="true">
+    <div class="settings-header">
+      <h2>Settings</h2>
+      <button type="button" id="settingsClose" class="icon-btn" aria-label="Close">×</button>
     </div>
-  </div>
+    <p class="settings-twitch-label"><span id="twitchChannelLabel">Twitch: #adjstreams</span> <span id="twitchStatus">Connecting…</span></p>
+    <label for="configChannel">Twitch channel</label>
+    <input type="text" id="configChannel" placeholder="adjstreams" />
+    <label for="configCommand">Command prefix (without !)</label>
+    <input type="text" id="configCommand" placeholder="sr" />
+    <button type="button" id="configSave">Save and reconnect</button>
+    <button type="button" id="twitchDisconnect">Disconnect from Twitch</button>
+  </aside>
 
-  <div class="queue-section">
-    <label for="urlInput">Add YouTube URL (watch?v= only)</label>
-    <input type="text" id="urlInput" placeholder="https://www.youtube.com/watch?v=..." />
-    <button id="addUrl">Add to queue</button>
-    <button id="clearQueue" type="button">Clear queue</button>
-    <ul id="queueList" class="queue-list">
-      <li class="queue-empty">Queue empty</li>
-    </ul>
-  </div>
+  <div id="settingsOverlay" class="settings-overlay" aria-hidden="true"></div>
 
   <script src="dock.js"></script>
 </body>

@@ -99,11 +99,24 @@ All messages are JSON objects with a `type` field. Property names and types must
 | `PLAY` | Dock → Player | `{ "type": "PLAY" }` |
 | `PAUSE` | Dock → Player | `{ "type": "PAUSE" }` |
 | `SEEK` | Dock → Player | `{ "type": "SEEK", "timeSeconds": number }` |
+| `SET_VOLUME` | Dock → Player | `{ "type": "SET_VOLUME", "value": number }` — 0–100. |
+| `SET_VIDEO_VISIBLE` | Dock → Player | `{ "type": "SET_VIDEO_VISIBLE", "visible": boolean }` — show or hide video on overlay (audio keeps playing). |
+| `PLAYER_PROGRESS` | Player → Dock | `{ "type": "PLAYER_PROGRESS", "playerId": string, "currentTime": number, "duration": number }` — sent periodically for Now Playing progress bar and seek. |
 | `VIDEO_ENDED` | Player → Dock | `{ "type": "VIDEO_ENDED", "playerId": string }` |
+
+**Planned (for Phase 3 features; add when implementing):**
+
+| Type | Direction | Payload |
+|------|-----------|---------|
+| `SPIN_START` | Dock → Player | `{ "type": "SPIN_START" }` (optional payload for labels) — player shows overlay (dimmed video + spinner/wheel animation). |
+| `SPIN_END` | Dock → Player | `{ "type": "SPIN_END" }` or use `LOAD_VIDEO` for winner — player hides overlay and plays winner. |
 
 - `videoId`: string, YouTube video ID (11 characters).
 - `timeSeconds`: number, seconds to seek to.
 - `playerId`: string, unique id for the player instance (e.g. UUID).
+- `currentTime` / `duration`: numbers, seconds (for progress bar).
+- `value`: number, 0–100 (for volume).
+- `visible`: boolean (for SET_VIDEO_VISIBLE — show video on overlay).
 
 ---
 
