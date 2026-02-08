@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Media Request — Dock</title>
+  <link rel="stylesheet" href="dock.css" />
+  <script src="https://cdn.jsdelivr.net/npm/comfy.js@1.1.6/dist/comfy.min.js"></script>
+</head>
+<body>
+  <h1>Media Request — Dock</h1>
+  <p id="statusText" class="status waiting">🟡 Waiting for player</p>
+
+  <div class="playback-controls">
+    <button id="startQueue" type="button">Start queue</button>
+    <button id="stopQueue" type="button">Stop queue</button>
+    <button id="skipNext" type="button">Skip to next</button>
+  </div>
+
+  <div class="twitch-section">
+    <p><span id="twitchChannelLabel">Twitch: listening to #adjstreams (anonymous).</span> <span id="twitchStatus">Connecting…</span></p>
+    <button id="twitchDisconnect">Disconnect from Twitch</button>
+
+    <div class="settings-section">
+      <label for="configChannel">Twitch channel</label>
+      <input type="text" id="configChannel" placeholder="adjstreams" />
+      <label for="configCommand">Command prefix (without !)</label>
+      <input type="text" id="configCommand" placeholder="sr" />
+      <button id="configSave">Save and reconnect</button>
+    </div>
+  </div>
+
+  <div class="queue-section">
+    <label for="urlInput">Add YouTube URL (watch?v= only)</label>
+    <input type="text" id="urlInput" placeholder="https://www.youtube.com/watch?v=..." />
+    <button id="addUrl">Add to queue</button>
+    <button id="clearQueue" type="button">Clear queue</button>
+    <ul id="queueList" class="queue-list">
+      <li class="queue-empty">Queue empty</li>
+    </ul>
+  </div>
+
+  <script src="dock.js"></script>
+</body>
+</html>

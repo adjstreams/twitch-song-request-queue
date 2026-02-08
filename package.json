@@ -1,0 +1,11 @@
+{
+  "name": "twitch-song-request-queue",
+  "version": "0.1.0",
+  "description": "Dock and player for Twitch song request (!sr) queue",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "main": "server.js"
+}
