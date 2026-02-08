@@ -38,10 +38,7 @@
               <label for="volumeSlider" class="visually-hidden">Volume</label>
               <input type="range" id="volumeSlider" min="0" max="100" value="100" />
             </div>
-            <label class="show-video-wrap">
-              <input type="checkbox" id="showVideoToggle" />
-              <span>Show video</span>
-            </label>
+            <button type="button" id="showVideoToggle" class="icon-btn eye-toggle" title="Show video on overlay" aria-label="Show video on overlay" aria-pressed="false">👁</button>
           </div>
         </div>
       </div>
@@ -70,11 +67,21 @@
 
   <div id="panelSpinner" class="tab-panel" role="tabpanel" hidden>
     <section class="spin-section">
-      <h2 class="section-heading">Spin the Wheel</h2>
-      <div class="spin-placeholder" id="spinPlaceholder">
-        <p>Pick a random song from the queue.</p>
-        <button type="button" id="spinBtn" class="btn-spin">SPIN!</button>
+      <div class="spin-section-header">
+        <h2 class="section-heading">Spin the Wheel</h2>
+        <button type="button" id="showWheelOnStreamBtn" class="icon-btn spin-wheel-stream-toggle" title="Show wheel on stream" aria-pressed="false" aria-label="Show wheel on stream">👁</button>
       </div>
+      <p class="spin-hint" id="spinHint">Add songs to the queue, then spin to pick one.</p>
+      <div class="spin-wheel-wrap" id="spinWheelWrap" hidden>
+        <canvas id="spinWheelCanvas" class="spin-wheel-canvas" width="240" height="240" aria-hidden="true"></canvas>
+        <div class="spin-wheel-pointer" aria-hidden="true"></div>
+      </div>
+      <div class="spin-result" id="spinResult" hidden>
+        <p class="spin-winner-label">Winner</p>
+        <p class="spin-winner-title" id="spinWinnerTitle">—</p>
+        <button type="button" id="spinPlayWinner" class="btn-spin">Play this song</button>
+      </div>
+      <button type="button" id="spinBtn" class="btn-spin" disabled>SPIN!</button>
     </section>
   </div>
 

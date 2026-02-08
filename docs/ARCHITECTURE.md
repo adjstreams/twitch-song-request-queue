@@ -102,14 +102,12 @@ All messages are JSON objects with a `type` field. Property names and types must
 | `SET_VOLUME` | Dock → Player | `{ "type": "SET_VOLUME", "value": number }` — 0–100. |
 | `SET_VIDEO_VISIBLE` | Dock → Player | `{ "type": "SET_VIDEO_VISIBLE", "visible": boolean }` — show or hide video on overlay (audio keeps playing). |
 | `PLAYER_PROGRESS` | Player → Dock | `{ "type": "PLAYER_PROGRESS", "playerId": string, "currentTime": number, "duration": number }` — sent periodically for Now Playing progress bar and seek. |
+| `SPIN_SHOW_WHEEL` | Dock → Player | `{ "type": "SPIN_SHOW_WHEEL", "segments": Array<{ videoId, label }> }` — player shows overlay with wheel (no spin); used when "show wheel on stream" is turned on. |
+| `SPIN_START` | Dock → Player | `{ "type": "SPIN_START", "segments": Array<{ videoId, label }>, "winnerIndex": number }` — player shows overlay (dimmed + wheel), wheel animates to winner. |
+| `SPIN_END` | Dock → Player | `{ "type": "SPIN_END" }` — player hides spin overlay. |
 | `VIDEO_ENDED` | Player → Dock | `{ "type": "VIDEO_ENDED", "playerId": string }` |
 
 **Planned (for Phase 3 features; add when implementing):**
-
-| Type | Direction | Payload |
-|------|-----------|---------|
-| `SPIN_START` | Dock → Player | `{ "type": "SPIN_START" }` (optional payload for labels) — player shows overlay (dimmed video + spinner/wheel animation). |
-| `SPIN_END` | Dock → Player | `{ "type": "SPIN_END" }` or use `LOAD_VIDEO` for winner — player hides overlay and plays winner. |
 
 - `videoId`: string, YouTube video ID (11 characters).
 - `timeSeconds`: number, seconds to seek to.
@@ -117,6 +115,7 @@ All messages are JSON objects with a `type` field. Property names and types must
 - `currentTime` / `duration`: numbers, seconds (for progress bar).
 - `value`: number, 0–100 (for volume).
 - `visible`: boolean (for SET_VIDEO_VISIBLE — show video on overlay).
+- `segments`: array of `{ videoId: string, label: string }` for spin wheel. `winnerIndex`: number (0-based) for which segment won.
 
 ---
 

@@ -6,7 +6,7 @@
   const DISCONNECT_TIMEOUT_MS = 10000;
   const STORAGE_KEY_QUEUE = "mr-queue";
   const STORAGE_KEY_CONFIG = "mr-config";
-  const DEFAULT_CONFIG = { channel: "adjstreams", commandPrefix: "sr", showVideo: false };
+  const DEFAULT_CONFIG = { channel: "adjstreams", commandPrefix: "sr", showVideo: false, showWheelOnStream: false };
 
   const statusEl = document.getElementById("statusText");
   const queueListEl = document.getElementById("queueList");
@@ -35,6 +35,14 @@
   const progressDuration = document.getElementById("progressDuration");
   const volumeSlider = document.getElementById("volumeSlider");
   const showVideoToggle = document.getElementById("showVideoToggle");
+  const spinBtn = document.getElementById("spinBtn");
+  const spinWheelWrap = document.getElementById("spinWheelWrap");
+  const spinWheelCanvas = document.getElementById("spinWheelCanvas");
+  const spinResult = document.getElementById("spinResult");
+  const spinWinnerTitle = document.getElementById("spinWinnerTitle");
+  const spinPlayWinner = document.getElementById("spinPlayWinner");
+  const spinHint = document.getElementById("spinHint");
+  const showWheelOnStreamBtn = document.getElementById("showWheelOnStreamBtn");
 
   let queue = [];
   let playerConnected = false;
@@ -42,7 +50,10 @@
   let pingTimeoutId = null;
   let lastProgressDuration = 0;
   let draggedIndex = -1;
+  let spinWinnerItem = null;
+  let nowPlayingOverride = null;
   const titleCache = {};
+  const WHEEL_COLORS = ["#a855f7", "#7c3aed", "#6d28d9", "#5b21b6", "#4c1d95"];
 
   function formatTime(seconds) {
     if (typeof seconds !== "number" || !isFinite(seconds) || seconds < 0) return "0:00";
@@ -68,6 +79,7 @@
             channel: parsed.channel.trim() || DEFAULT_CONFIG.channel,
             commandPrefix: (parsed.commandPrefix.trim() || DEFAULT_CONFIG.commandPrefix).replace(/^!/, ""),
             showVideo: parsed.showVideo === true,
+            showWheelOnStream: parsed.showWheelOnStream === true,
           };
         }
       }
@@ -185,7 +197,7 @@
   }
 
   function updateNowPlaying() {
-    var item = queue.length > 0 ? queue[0] : null;
+    var item = nowPlayingOverride || (queue.length > 0 ? queue[0] : null);
     if (nowPlayingThumb) {
       nowPlayingThumb.innerHTML = "";
       if (item) {
@@ -195,7 +207,7 @@
         nowPlayingThumb.appendChild(img);
       }
     }
-    if (nowPlayingTitle) nowPlayingTitle.textContent = item ? displayTitle(item) : "—";
+    if (nowPlayingTitle) nowPlayingTitle.textContent = item ? (item.label || item.title || item.videoId) : "—";
     if (nowPlayingRequestedBy) nowPlayingRequestedBy.textContent = item ? "Requested by " + (item.requestedBy || "—") : "Requested by —";
     if (queue.length === 0 && progressFill && progressCurrent && progressDuration) {
       progressFill.style.width = "0%";
@@ -241,6 +253,79 @@
     if (wasFirst && playerConnected) {
       if (queue.length > 0) sendLoadAndPlay(queue[0].videoId);
       else send({ type: "PAUSE" });
+    }
+  }
+
+  function drawWheel(ctx, segments, rotationDeg, size) {
+    var cx = size;
+    var cy = size;
+    var r = size - 4;
+    var n = segments.length;
+    if (n === 0) return;
+    var step = (2 * Math.PI) / n;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate((rotationDeg * Math.PI) / 180);
+    ctx.translate(-cx, -cy);
+    for (var i = 0; i < n; i++) {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, r, i * step, (i + 1) * step);
+      ctx.closePath();
+      ctx.fillStyle = WHEEL_COLORS[i % WHEEL_COLORS.length];
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.3)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      var midAngle = (i + 0.5) * step;
+      var label = segments[i].label;
+      if (label && label.length > 12) label = label.slice(0, 11) + "…";
+      ctx.save();
+      ctx.translate(cx + (r * 0.6) * Math.sin(midAngle), cy - (r * 0.6) * Math.cos(midAngle));
+      ctx.rotate(midAngle);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#fff";
+      ctx.font = "11px sans-serif";
+      ctx.fillText(label || "", 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  function runWheelAnimation(canvas, segments, winnerIndex, durationMs, onComplete) {
+    var ctx = canvas.getContext("2d");
+    var size = Math.min(canvas.width, canvas.height) / 2;
+    var n = segments.length;
+    if (n === 0) { if (onComplete) onComplete(); return; }
+    var spins = 5;
+    var segmentDeg = 360 / n;
+    var endRotation = spins * 360 + (360 - (winnerIndex + 0.5) * segmentDeg);
+    var startTime = null;
+    function frame(t) {
+      if (!startTime) startTime = t;
+      var elapsed = t - startTime;
+      var progress = Math.min(1, elapsed / durationMs);
+      var ease = 1 - Math.pow(1 - progress, 3);
+      var rotation = endRotation * ease;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawWheel(ctx, segments, rotation, size);
+      if (progress < 1) requestAnimationFrame(frame);
+      else if (onComplete) onComplete();
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function updateSpinButtonState() {
+    if (spinBtn) spinBtn.disabled = queue.length === 0;
+    if (spinHint) spinHint.hidden = queue.length > 0;
+    if (spinWheelWrap) spinWheelWrap.hidden = queue.length === 0;
+    if (queue.length > 0 && spinWheelWrap && !spinWheelWrap.hidden && spinWheelCanvas && !spinWinnerItem) {
+      var segs = queue.map(function (item) { return { videoId: item.videoId, label: item.title || item.videoId }; });
+      var ctx = spinWheelCanvas.getContext("2d");
+      var size = Math.min(spinWheelCanvas.width, spinWheelCanvas.height) / 2;
+      ctx.clearRect(0, 0, spinWheelCanvas.width, spinWheelCanvas.height);
+      drawWheel(ctx, segs, 0, size);
     }
   }
 
@@ -335,6 +420,7 @@
 
       queueListEl.appendChild(li);
     });
+    updateSpinButtonState();
   }
 
   var bc = new BroadcastChannel(BC_NAME);
@@ -346,7 +432,9 @@
       lastPingAt = Date.now();
       if (!playerConnected) {
         setStatus("connected");
-        send({ type: "SET_VIDEO_VISIBLE", visible: getConfig().showVideo });
+        var cfg = getConfig();
+        send({ type: "SET_VIDEO_VISIBLE", visible: cfg.showVideo });
+        if (cfg.showWheelOnStream) sendShowWheelOnStream();
       }
       if (pingTimeoutId) clearTimeout(pingTimeoutId);
       pingTimeoutId = setTimeout(checkPingTimeout, DISCONNECT_TIMEOUT_MS);
@@ -355,7 +443,13 @@
         updateProgress(msg.currentTime, msg.duration);
       }
     } else if (msg.type === "VIDEO_ENDED") {
-      if (queue.length > 0) {
+      if (nowPlayingOverride) {
+        nowPlayingOverride = null;
+        updateNowPlaying();
+        updateQueueCount();
+        if (queue.length > 0) sendLoadAndPlay(queue[0].videoId);
+        else send({ type: "PAUSE" });
+      } else if (queue.length > 0) {
         queue.shift();
         persistQueue();
         renderQueue();
@@ -508,18 +602,82 @@
   if (settingsClose) settingsClose.addEventListener("click", closeSettings);
   if (settingsOverlay) settingsOverlay.addEventListener("click", closeSettings);
 
-  if (document.getElementById("spinBtn")) {
-    document.getElementById("spinBtn").addEventListener("click", function () {
-      if (!playerConnected || queue.length === 0) return;
-      var idx = Math.floor(Math.random() * queue.length);
-      var item = queue[idx];
-      queue.splice(idx, 1);
-      queue.unshift(item);
-      persistQueue();
-      renderQueue();
+  if (spinBtn) {
+    spinBtn.addEventListener("click", function () {
+      if (queue.length === 0) return;
+      var winnerIndex = Math.floor(Math.random() * queue.length);
+      var segments = queue.map(function (item) {
+        return { videoId: item.videoId, label: item.title || item.videoId };
+      });
+      spinWinnerItem = { videoId: queue[winnerIndex].videoId, label: segments[winnerIndex].label };
+      var showWheelOnStream = showWheelOnStreamBtn && showWheelOnStreamBtn.getAttribute("aria-pressed") === "true";
+      if (!showWheelOnStream) showWheelOnStream = getConfig().showWheelOnStream === true;
+      if (showWheelOnStream) {
+        send({
+          type: "SPIN_START",
+          segments: segments,
+          winnerIndex: winnerIndex,
+        });
+      }
+      if (spinResult) spinResult.hidden = true;
+      if (spinWheelWrap) spinWheelWrap.hidden = false;
+      spinBtn.disabled = true;
+      runWheelAnimation(
+        spinWheelCanvas,
+        segments,
+        winnerIndex,
+        4000,
+        function () {
+          if (spinWinnerTitle) spinWinnerTitle.textContent = spinWinnerItem.label;
+          if (spinResult) spinResult.hidden = false;
+          spinBtn.disabled = false;
+        }
+      );
+    });
+  }
+
+  if (spinPlayWinner) {
+    spinPlayWinner.addEventListener("click", function () {
+      if (!spinWinnerItem) return;
+      var videoId = spinWinnerItem.videoId;
+      var label = spinWinnerItem.label;
+      var item = queue.find(function (q) { return q.videoId === videoId; });
+      if (item) {
+        queue.splice(queue.indexOf(item), 1);
+        persistQueue();
+        renderQueue();
+        updateQueueCount();
+      }
+      nowPlayingOverride = { videoId: videoId, label: label, requestedBy: "Spin" };
+      sendLoadAndPlay(videoId);
+      send({ type: "SPIN_END" });
+      spinWinnerItem = null;
+      if (spinResult) spinResult.hidden = true;
+      updateSpinButtonState();
       updateNowPlaying();
-      updateQueueCount();
-      sendLoadAndPlay(item.videoId);
+    });
+  }
+
+  function sendShowWheelOnStream() {
+    var segments = queue.map(function (item) {
+      return { videoId: item.videoId, label: item.title || item.videoId };
+    });
+    send({ type: "SPIN_SHOW_WHEEL", segments: segments });
+  }
+
+  if (showWheelOnStreamBtn) {
+    function updateShowWheelOnStreamButton() {
+      var c = getConfig();
+      showWheelOnStreamBtn.setAttribute("aria-pressed", c.showWheelOnStream ? "true" : "false");
+    }
+    updateShowWheelOnStreamButton();
+    showWheelOnStreamBtn.addEventListener("click", function () {
+      var c = getConfig();
+      c.showWheelOnStream = !c.showWheelOnStream;
+      saveConfig({ channel: c.channel, commandPrefix: c.commandPrefix, showVideo: c.showVideo, showWheelOnStream: c.showWheelOnStream });
+      updateShowWheelOnStreamButton();
+      if (c.showWheelOnStream) sendShowWheelOnStream();
+      else send({ type: "SPIN_END" });
     });
   }
 
@@ -531,13 +689,17 @@
   }
 
   if (showVideoToggle) {
-    var config = getConfig();
-    showVideoToggle.checked = config.showVideo;
-    showVideoToggle.addEventListener("change", function () {
-      config = getConfig();
-      config.showVideo = showVideoToggle.checked;
-      saveConfig(config);
-      send({ type: "SET_VIDEO_VISIBLE", visible: config.showVideo });
+    function updateShowVideoButton() {
+      var c = getConfig();
+      showVideoToggle.setAttribute("aria-pressed", c.showVideo ? "true" : "false");
+    }
+    updateShowVideoButton();
+    showVideoToggle.addEventListener("click", function () {
+      var c = getConfig();
+      c.showVideo = !c.showVideo;
+      saveConfig({ channel: c.channel, commandPrefix: c.commandPrefix, showVideo: c.showVideo, showWheelOnStream: c.showWheelOnStream });
+      updateShowVideoButton();
+      send({ type: "SET_VIDEO_VISIBLE", visible: c.showVideo });
     });
   }
 
@@ -554,7 +716,7 @@
       var prev = getConfig();
       var channel = (configChannelEl.value || "").trim() || DEFAULT_CONFIG.channel;
       var commandPrefix = (configCommandEl.value || "").trim().replace(/^!/, "") || DEFAULT_CONFIG.commandPrefix;
-      saveConfig({ channel: channel, commandPrefix: commandPrefix, showVideo: prev.showVideo });
+      saveConfig({ channel: channel, commandPrefix: commandPrefix, showVideo: prev.showVideo, showWheelOnStream: prev.showWheelOnStream });
       ComfyJS.Disconnect();
       twitchStatusEl.textContent = "Reconnecting…";
       updateTwitchLabel();
