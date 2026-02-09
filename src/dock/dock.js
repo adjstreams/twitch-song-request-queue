@@ -8,7 +8,9 @@
   const STORAGE_KEY_CONFIG = "mr-config";
   const DEFAULT_CONFIG = { channel: "", commandPrefix: "sr", showVideo: false, showWheelOnStream: false };
 
-  const statusEl = document.getElementById("statusText");
+  const overlayStatusEl = document.getElementById("overlayStatus");
+  const channelStatusEl = document.getElementById("channelStatus");
+  const settingsConnectionStatusEl = document.getElementById("settingsConnectionStatus");
   const queueListEl = document.getElementById("queueList");
   const urlInputEl = document.getElementById("urlInput");
   const addUrlBtn = document.getElementById("addUrl");
@@ -46,6 +48,9 @@
 
   let queue = [];
   let playerConnected = false;
+  let playerStatus = "waiting";
+  let twitchInitialized = false;
+  let twitchConnectionState = "disconnected";
   let lastPingAt = 0;
   let pingTimeoutId = null;
   let lastProgressDuration = 0;
@@ -94,13 +99,40 @@
   }
 
   function setStatus(s) {
-    if (statusEl) {
-      statusEl.className = "connection-status " + s;
-      if (s === "waiting") statusEl.textContent = "Connecting…";
-      else if (s === "connected") statusEl.textContent = "Connected";
-      else statusEl.textContent = "Disconnected";
-    }
+    playerStatus = s;
     playerConnected = s === "connected";
+    updateHeaderStatus();
+    updateSettingsConnectionStatus();
+  }
+
+  function updateHeaderStatus() {
+    var overlayDot = overlayStatusEl && overlayStatusEl.querySelector(".status-dot");
+    if (overlayDot) {
+      overlayDot.className = "status-dot " + (playerConnected ? "connected" : playerStatus === "waiting" ? "waiting" : "disconnected");
+      overlayStatusEl.title = playerConnected ? "Player (overlay) is connected — videos will play in OBS." : (playerStatus === "waiting" ? "Connecting to player… Open the player as a Browser Source in OBS." : "Player disconnected — open the player as a Browser Source in OBS.");
+    }
+    var channelDot = channelStatusEl && channelStatusEl.querySelector(".status-dot");
+    if (channelDot) {
+      channelDot.className = "status-dot " + twitchConnectionState;
+      var config = getConfig();
+      var ch = config.channel && config.channel.trim();
+      if (twitchConnectionState === "connected") channelStatusEl.title = "Connected to #" + ch + " — chat requests will be added to the queue.";
+      else if (twitchConnectionState === "connecting") channelStatusEl.title = "Reconnecting to Twitch…";
+      else channelStatusEl.title = ch ? "Twitch disconnected. Check Settings or reconnect." : "Set your Twitch channel in Settings to listen to chat.";
+    }
+  }
+
+  function updateSettingsConnectionStatus() {
+    if (!settingsConnectionStatusEl) return;
+    var overlayText = playerConnected ? "Connected" : (playerStatus === "waiting" ? "Connecting…" : "Disconnected");
+    var channelText = twitchConnectionState === "connected" ? "Connected" : (twitchConnectionState === "connecting" ? "Reconnecting…" : "Disconnected");
+    var config = getConfig();
+    if (!(config.channel && config.channel.trim())) channelText = "Set channel below";
+    settingsConnectionStatusEl.textContent = "Overlay: " + overlayText + " · Twitch: " + channelText;
+    var state = "disconnected";
+    if (playerConnected && twitchConnectionState === "connected") state = "connected";
+    else if (playerStatus === "waiting" || twitchConnectionState === "connecting") state = "waiting";
+    settingsConnectionStatusEl.className = "settings-connection-status state-" + state;
   }
 
   function extractVideoId(text) {
@@ -516,7 +548,10 @@
   function connectTwitch() {
     var config = getConfig();
     if (!config.channel || !config.channel.trim()) {
+      twitchConnectionState = "disconnected";
       if (twitchStatusEl) twitchStatusEl.textContent = "Set your Twitch channel in Settings to listen to chat.";
+      updateHeaderStatus();
+      updateSettingsConnectionStatus();
       return;
     }
     ComfyJS.onCommand = function (user, command, message, flags, extra) {
@@ -525,12 +560,22 @@
       if (videoId) addToQueue(videoId, user || "—");
     };
     ComfyJS.onConnected = function () {
+      twitchConnectionState = "connected";
       twitchStatusEl.textContent = "Connected.";
+      updateHeaderStatus();
+      updateSettingsConnectionStatus();
     };
     ComfyJS.onError = function (err) {
+      twitchConnectionState = "disconnected";
       twitchStatusEl.textContent = "Error: " + (err && err.message ? err.message : String(err));
+      updateHeaderStatus();
+      updateSettingsConnectionStatus();
     };
+    twitchConnectionState = "connecting";
+    updateHeaderStatus();
+    updateSettingsConnectionStatus();
     ComfyJS.Init(config.channel.trim());
+    twitchInitialized = true;
   }
 
   addUrlBtn.addEventListener("click", function () {
@@ -593,6 +638,7 @@
   }
 
   function openSettings() {
+    updateSettingsConnectionStatus();
     if (settingsPanel) settingsPanel.classList.add("open");
     if (settingsPanel) settingsPanel.setAttribute("aria-hidden", "false");
     if (settingsOverlay) settingsOverlay.classList.add("open");
@@ -708,8 +754,14 @@
   }
 
   twitchDisconnectBtn.addEventListener("click", function () {
-    ComfyJS.Disconnect();
+    if (twitchInitialized) {
+      ComfyJS.Disconnect();
+      twitchInitialized = false;
+    }
+    twitchConnectionState = "disconnected";
     twitchStatusEl.textContent = "Disconnected.";
+    updateHeaderStatus();
+    updateSettingsConnectionStatus();
   });
 
   if (configSaveBtn && configChannelEl && configCommandEl) {
@@ -721,9 +773,15 @@
       var channel = (configChannelEl.value || "").trim();
       var commandPrefix = (configCommandEl.value || "").trim().replace(/^!/, "") || DEFAULT_CONFIG.commandPrefix;
       saveConfig({ channel: channel, commandPrefix: commandPrefix, showVideo: prev.showVideo, showWheelOnStream: prev.showWheelOnStream });
-      ComfyJS.Disconnect();
+      if (twitchInitialized) {
+        ComfyJS.Disconnect();
+        twitchInitialized = false;
+      }
+      twitchConnectionState = "connecting";
       twitchStatusEl.textContent = "Reconnecting…";
       updateTwitchLabel();
+      updateHeaderStatus();
+      updateSettingsConnectionStatus();
       connectTwitch();
     });
   }
@@ -746,4 +804,6 @@
   updateNowPlaying();
   setStatus("waiting");
   connectTwitch();
+  updateHeaderStatus();
+  updateSettingsConnectionStatus();
 })();

@@ -10,7 +10,14 @@
 <body>
   <header class="dock-header">
     <h1 class="dock-title">Song Requests</h1>
-    <span id="queueCount" class="queue-count">0 in queue</span>
+    <div class="dock-header-right">
+      <div class="header-status" aria-label="Connection status">
+        <span id="overlayStatus" class="status-indicator" title="Player (overlay) connection"><span class="status-dot" aria-hidden="true"></span><span class="status-label">Overlay</span></span>
+        <span id="channelStatus" class="status-indicator" title="Twitch channel connection"><span class="status-dot" aria-hidden="true"></span><span class="status-label">Channel</span></span>
+      </div>
+      <span id="queueCount" class="queue-count">0 in queue</span>
+      <button type="button" id="settingsToggle" class="header-settings-btn icon-btn" title="Settings" aria-label="Settings">⚙</button>
+    </div>
   </header>
 
   <div class="tabs" role="tablist">
@@ -50,10 +57,8 @@
         <input type="text" id="urlInput" placeholder="YouTube URL or search..." aria-label="YouTube URL" />
         <button type="button" id="addUrl" class="btn-add" title="Add">+</button>
       </div>
-      <p class="connection-status" id="statusText">Waiting for player</p>
       <div class="toolbar">
         <button type="button" id="clearQueue" class="toolbar-btn" title="Clear queue">Clear</button>
-        <button type="button" id="settingsToggle" class="toolbar-btn" title="Settings">Settings</button>
       </div>
     </section>
 
@@ -90,6 +95,7 @@
       <h2>Settings</h2>
       <button type="button" id="settingsClose" class="icon-btn" aria-label="Close">×</button>
     </div>
+    <div id="settingsConnectionStatus" class="settings-connection-status" role="status" aria-live="polite"></div>
     <p class="settings-twitch-label"><span id="twitchChannelLabel">Twitch: set your channel in the field below to listen to chat.</span> <span id="twitchStatus"></span></p>
     <label for="configChannel">Twitch channel to listen to</label>
     <input type="text" id="configChannel" placeholder="your_channel" />

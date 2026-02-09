@@ -48,7 +48,6 @@ This document lists features and improvements for the Media Request application.
 - Moderation backend or bot bans.
 - Analytics or history stored on a server.
 - **YouTube search by text:** Resolving a text query to a video ID requires YouTube Data API `search.list`; the key must not live in the client. Out of scope or later with a server-side proxy or secured API key.
-- **Video duration** in queue or Now Playing: oEmbed does not provide duration; YouTube Data API `videos.list` does (with API key). Omit duration or show "–" unless a secured key or server is introduced.
 
 If a feature would require server-side state or a new backend service, it does not belong in the current product direction; revisit ARCHITECTURE and this roadmap before adding it.
 
