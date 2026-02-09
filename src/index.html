@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Twitch Song Request Queue</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      line-height: 1.6;
+      max-width: 42rem;
+      margin: 0 auto;
+      padding: 2rem 1rem;
+      color: #1a1a1a;
+      background: #fafafa;
+    }
+    h1 { font-size: 1.75rem; margin-top: 0; }
+    h2 { font-size: 1.15rem; margin-top: 1.5rem; color: #333; }
+    p { margin: 0.5rem 0 1rem; }
+    a { color: #0969da; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    ul, ol { margin: 0.5rem 0 1rem; padding-left: 1.5rem; }
+    li { margin: 0.25rem 0; }
+    .cards {
+      display: grid;
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+    .card {
+      display: block;
+      padding: 1rem 1.25rem;
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      font-weight: 500;
+      color: inherit;
+    }
+    .card:hover { border-color: #0969da; text-decoration: none; }
+    .card small { display: block; font-weight: 400; color: #666; margin-top: 0.25rem; }
+    code { background: #eee; padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.9em; word-break: break-all; }
+    .url-box { background: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 6px; padding: 0.6rem 0.75rem; margin: 0.5rem 0 1rem; font-family: ui-monospace, monospace; font-size: 0.9rem; overflow-x: auto; }
+    .footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid #e0e0e0; font-size: 0.9rem; color: #666; }
+  </style>
+</head>
+<body>
+  <h1>Twitch Song Request Queue</h1>
+  <p>
+    A simple, browser-based app for Twitch streamers: viewers request YouTube songs via chat (e.g. <code>!sr</code>),
+    and you control the queue from a <strong>dock</strong> while a <strong>player</strong> page plays the videos in OBS.
+  </p>
+  <p>Everything runs in your browser. There is no server or account required.</p>
+
+  <h2>Open the app</h2>
+  <div class="cards">
+    <a href="dock/" class="card">
+      Dock (controller)
+      <small>Queue, Twitch chat, add/skip/clear, settings. Add as a Custom Browser Dock in OBS.</small>
+    </a>
+    <a href="player/" class="card">
+      Player
+      <small>Full-screen YouTube player for OBS. Add as a Browser Source in your scene.</small>
+    </a>
+  </div>
+
+  <h2>How to use this with OBS</h2>
+  <p>The URLs below match where you’re viewing this page (e.g. <code id="hostExample">—</code>). Use them as-is in OBS.</p>
+  <ol>
+    <li>
+      <strong>Add the dock as a custom dock.</strong> In OBS: <strong>View → Docks → Custom Browser Docks</strong>. Add a dock with a name (e.g. “Media request”) and this URL, then click <strong>Apply</strong> or <strong>Close</strong> to open the docks:
+      <div class="url-box" id="dockUrl">—</div>
+    </li>
+    <li>
+      <strong>Add the player as a Browser Source.</strong> In your scene: <strong>Sources → Add → Browser</strong>. Set the URL to:
+      <div class="url-box" id="playerUrl">—</div>
+      This is the full-screen player that plays the requested videos. Position and size it in your scene.
+    </li>
+    <li>
+      <strong>Set the channel to listen to.</strong> In the dock, click <strong>Settings</strong>. Enter your <strong>Twitch channel</strong> (the channel name viewers will type <code>!sr</code> in). Optionally set the command prefix (e.g. <code>sr</code> so the command is <code>!sr</code>). Click <strong>Save and reconnect</strong>. When it shows <strong>Connected</strong>, chat requests will be added to the queue.
+    </li>
+  </ol>
+  <p>Dock and player must be loaded in the same browser process (the custom dock and the Browser Source both use OBS’s browser). Viewers request songs with <code>!sr</code> and a YouTube URL, or you can paste URLs into the dock.</p>
+
+  <h2>Report issues</h2>
+  <p>
+    To report bugs or suggest features, open an issue on the project’s GitHub repository:
+    <a href="https://github.com/adjstreams/twitch-song-request-queue/issues" rel="noopener noreferrer">twitch-song-request-queue issues</a>.
+  </p>
+
+  <footer class="footer">
+    Twitch Song Request Queue — client-side only, no server. Source code and more info are in the GitHub repository.
+  </footer>
+
+  <script>
+    (function () {
+      var base = location.origin + location.pathname.replace(/\/$/, "");
+      document.getElementById("dockUrl").textContent = base + "/dock/";
+      document.getElementById("playerUrl").textContent = base + "/player/";
+      var hostEx = document.getElementById("hostExample");
+      if (hostEx) hostEx.textContent = base || "this site";
+    })();
+  </script>
+</body>
+</html>

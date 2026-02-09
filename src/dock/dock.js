@@ -6,7 +6,7 @@
   const DISCONNECT_TIMEOUT_MS = 10000;
   const STORAGE_KEY_QUEUE = "mr-queue";
   const STORAGE_KEY_CONFIG = "mr-config";
-  const DEFAULT_CONFIG = { channel: "adjstreams", commandPrefix: "sr", showVideo: false, showWheelOnStream: false };
+  const DEFAULT_CONFIG = { channel: "", commandPrefix: "sr", showVideo: false, showWheelOnStream: false };
 
   const statusEl = document.getElementById("statusText");
   const queueListEl = document.getElementById("queueList");
@@ -76,7 +76,7 @@
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed.channel === "string" && typeof parsed.commandPrefix === "string") {
           return {
-            channel: parsed.channel.trim() || DEFAULT_CONFIG.channel,
+            channel: (parsed.channel && parsed.channel.trim()) || "",
             commandPrefix: (parsed.commandPrefix.trim() || DEFAULT_CONFIG.commandPrefix).replace(/^!/, ""),
             showVideo: parsed.showVideo === true,
             showWheelOnStream: parsed.showWheelOnStream === true,
@@ -515,6 +515,10 @@
 
   function connectTwitch() {
     var config = getConfig();
+    if (!config.channel || !config.channel.trim()) {
+      if (twitchStatusEl) twitchStatusEl.textContent = "Set your Twitch channel in Settings to listen to chat.";
+      return;
+    }
     ComfyJS.onCommand = function (user, command, message, flags, extra) {
       if (command !== config.commandPrefix) return;
       var videoId = extractVideoId(message || "");
@@ -526,7 +530,7 @@
     ComfyJS.onError = function (err) {
       twitchStatusEl.textContent = "Error: " + (err && err.message ? err.message : String(err));
     };
-    ComfyJS.Init(config.channel);
+    ComfyJS.Init(config.channel.trim());
   }
 
   addUrlBtn.addEventListener("click", function () {
@@ -714,7 +718,7 @@
     configCommandEl.value = config.commandPrefix;
     configSaveBtn.addEventListener("click", function () {
       var prev = getConfig();
-      var channel = (configChannelEl.value || "").trim() || DEFAULT_CONFIG.channel;
+      var channel = (configChannelEl.value || "").trim();
       var commandPrefix = (configCommandEl.value || "").trim().replace(/^!/, "") || DEFAULT_CONFIG.commandPrefix;
       saveConfig({ channel: channel, commandPrefix: commandPrefix, showVideo: prev.showVideo, showWheelOnStream: prev.showWheelOnStream });
       ComfyJS.Disconnect();
@@ -727,7 +731,13 @@
   function updateTwitchLabel() {
     var config = getConfig();
     var label = document.getElementById("twitchChannelLabel");
-    if (label) label.textContent = "Twitch: listening to #" + config.channel + " (anonymous). ";
+    if (label) {
+      if (config.channel && config.channel.trim()) {
+        label.textContent = "Twitch: listening to #" + config.channel + " (anonymous). ";
+      } else {
+        label.textContent = "Twitch: set your channel in the field below to listen to chat.";
+      }
+    }
   }
 
   updateTwitchLabel();

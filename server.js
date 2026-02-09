@@ -23,9 +23,19 @@ function serveFile(res, filePath) {
 const server = http.createServer((req, res) => {
   const pathname = (req.url || "").split("?")[0] || "/";
 
-  if (pathname === "/" || pathname === "/dock") {
+  if (pathname === "/dock") {
     res.writeHead(302, { Location: "/dock/" });
     res.end();
+    return;
+  }
+  if (pathname === "/" || pathname === "/index.html") {
+    const filePath = path.join(ROOT, "src", "index.html");
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("Not found");
+      return;
+    }
+    serveFile(res, filePath);
     return;
   }
   if (pathname === "/dock/") {
@@ -90,6 +100,7 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, () => {
   console.log(`Media Request: http://localhost:${PORT}`);
+  console.log(`  Root:   http://localhost:${PORT}/`);
   console.log(`  Dock:   http://localhost:${PORT}/dock/`);
   console.log(`  Player: http://localhost:${PORT}/player/`);
 });
