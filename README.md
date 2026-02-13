@@ -67,6 +67,7 @@ When the dock shows the player as connected, the player will play the queue in o
 ## Documentation
 
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — Technical architecture, communication (BroadcastChannel), project layout, testing, and what is out of scope.
+- **[docs/BEHAVIORS.md](docs/BEHAVIORS.md)** — Expected behaviors and testing checklist; use when adding or changing features to ensure existing behaviors are not broken.
 - **[docs/ROADMAP.md](docs/ROADMAP.md)** — Planned features and phases; use when adding or changing features.
 
 ---

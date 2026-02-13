@@ -173,6 +173,18 @@
       return;
     }
 
+    if (msg.type === "CLEAR") {
+      playWhenReady = false;
+      if (ytPlayer) {
+        if (typeof ytPlayer.stopVideo === "function") ytPlayer.stopVideo();
+        if (typeof ytPlayer.clearVideo === "function") ytPlayer.clearVideo();
+      }
+      if (containerEl) {
+        containerEl.classList.remove("video-visible");
+      }
+      return;
+    }
+
     if (!ytPlayer || typeof ytPlayer.loadVideoById !== "function") return;
     switch (msg.type) {
       case "LOAD_VIDEO":

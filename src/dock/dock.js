@@ -6,7 +6,7 @@
   const DISCONNECT_TIMEOUT_MS = 10000;
   const STORAGE_KEY_QUEUE = "mr-queue";
   const STORAGE_KEY_CONFIG = "mr-config";
-  const DEFAULT_CONFIG = { channel: "", commandPrefix: "sr", showVideo: false, showWheelOnStream: false };
+  const DEFAULT_CONFIG = { channel: "", commandPrefix: "sr", showVideo: false, showWheelOnStream: false, autoplayWhenEmpty: false };
 
   const overlayStatusEl = document.getElementById("overlayStatus");
   const channelStatusEl = document.getElementById("channelStatus");
@@ -45,6 +45,7 @@
   const spinPlayWinner = document.getElementById("spinPlayWinner");
   const spinHint = document.getElementById("spinHint");
   const showWheelOnStreamBtn = document.getElementById("showWheelOnStreamBtn");
+  const autoplayWhenEmptyToggle = document.getElementById("autoplayWhenEmptyToggle");
 
   let queue = [];
   let playerConnected = false;
@@ -85,6 +86,7 @@
             commandPrefix: (parsed.commandPrefix.trim() || DEFAULT_CONFIG.commandPrefix).replace(/^!/, ""),
             showVideo: parsed.showVideo === true,
             showWheelOnStream: parsed.showWheelOnStream === true,
+            autoplayWhenEmpty: parsed.autoplayWhenEmpty === true,
           };
         }
       }
@@ -285,7 +287,7 @@
     updateNowPlaying();
     updateQueueCount();
     ensureTitlesThenRefresh();
-    if (playerConnected && queue.length === 1) {
+    if (playerConnected && queue.length === 1 && getConfig().autoplayWhenEmpty) {
       sendLoadAndPlay(queue[0].videoId);
     }
   }
@@ -373,7 +375,11 @@
     updateQueueCount();
     if (wasFirst && playerConnected) {
       if (queue.length > 0) sendLoadAndPlay(queue[0].videoId);
-      else send({ type: "PAUSE" });
+      else {
+        lastProgressDuration = 0;
+        send({ type: "CLEAR" });
+        updateVideoVisibility();
+      }
     }
   }
 
@@ -554,7 +560,7 @@
       if (!playerConnected) {
         setStatus("connected");
         var cfg = getConfig();
-        send({ type: "SET_VIDEO_VISIBLE", visible: cfg.showVideo });
+        updateVideoVisibility();
         if (cfg.showWheelOnStream) sendShowWheelOnStream();
       }
       if (pingTimeoutId) clearTimeout(pingTimeoutId);
@@ -569,7 +575,11 @@
         updateNowPlaying();
         updateQueueCount();
         if (queue.length > 0) sendLoadAndPlay(queue[0].videoId);
-        else send({ type: "PAUSE" });
+        else {
+          lastProgressDuration = 0;
+          send({ type: "CLEAR" });
+          updateVideoVisibility();
+        }
       } else if (queue.length > 0) {
         queue.shift();
         persistQueue();
@@ -577,6 +587,11 @@
         updateNowPlaying();
         updateQueueCount();
         if (queue.length > 0) sendLoadAndPlay(queue[0].videoId);
+        else {
+          lastProgressDuration = 0;
+          send({ type: "CLEAR" });
+          updateVideoVisibility();
+        }
       }
     }
   };
@@ -592,6 +607,14 @@
     bc.postMessage(msg);
   }
 
+  function updateVideoVisibility() {
+    if (!playerConnected) return;
+    var c = getConfig();
+    // Only show video if showVideo is enabled AND there's a video loaded or queued
+    var shouldShow = c.showVideo && (lastProgressDuration > 0 || queue.length > 0);
+    send({ type: "SET_VIDEO_VISIBLE", visible: shouldShow });
+  }
+
   function seekTo(timeSeconds) {
     if (!playerConnected || lastProgressDuration <= 0) return;
     var t = Math.max(0, Math.min(lastProgressDuration, timeSeconds));
@@ -600,15 +623,28 @@
 
   function sendLoadAndPlay(videoId) {
     if (!playerConnected) return;
+    var c = getConfig();
+    if (c.showVideo) {
+      send({ type: "SET_VIDEO_VISIBLE", visible: true });
+    }
     send({ type: "LOAD_VIDEO", videoId: videoId });
     send({ type: "PLAY" });
   }
 
   function startQueue() {
     if (!playerConnected) return;
-    // If there's a current video (override or queue[0]), resume playback instead of restarting
-    // The player's PLAY handler will resume if paused, or play if ended/cued
-    send({ type: "PLAY" });
+    // Don't play if queue is empty
+    if (queue.length === 0) return;
+    // If there's a video in the queue but no video is currently loaded (lastProgressDuration === 0),
+    // load and play it. This handles the case when autoplay is disabled and a video was just added.
+    // Otherwise, resume playback of the current video.
+    if (queue.length > 0 && lastProgressDuration === 0) {
+      sendLoadAndPlay(queue[0].videoId);
+    } else {
+      // If there's a current video (override or queue[0]), resume playback instead of restarting
+      // The player's PLAY handler will resume if paused, or play if ended/cued
+      send({ type: "PLAY" });
+    }
   }
 
   function stopQueue() {
@@ -627,7 +663,9 @@
       if (queue.length > 0) {
         sendLoadAndPlay(queue[0].videoId);
       } else {
-        send({ type: "PAUSE" });
+        lastProgressDuration = 0;
+        send({ type: "CLEAR" });
+        updateVideoVisibility();
       }
     }
   }
@@ -685,6 +723,11 @@
     renderQueue();
     updateNowPlaying();
     updateQueueCount();
+    if (playerConnected) {
+      lastProgressDuration = 0;
+      send({ type: "CLEAR" });
+      updateVideoVisibility();
+    }
   });
 
   document.getElementById("startQueue").addEventListener("click", startQueue);
@@ -811,7 +854,7 @@
     showWheelOnStreamBtn.addEventListener("click", function () {
       var c = getConfig();
       c.showWheelOnStream = !c.showWheelOnStream;
-      saveConfig({ channel: c.channel, commandPrefix: c.commandPrefix, showVideo: c.showVideo, showWheelOnStream: c.showWheelOnStream });
+      saveConfig({ channel: c.channel, commandPrefix: c.commandPrefix, showVideo: c.showVideo, showWheelOnStream: c.showWheelOnStream, autoplayWhenEmpty: c.autoplayWhenEmpty });
       updateShowWheelOnStreamButton();
       if (c.showWheelOnStream) sendShowWheelOnStream();
       else send({ type: "SPIN_END" });
@@ -834,9 +877,22 @@
     showVideoToggle.addEventListener("click", function () {
       var c = getConfig();
       c.showVideo = !c.showVideo;
-      saveConfig({ channel: c.channel, commandPrefix: c.commandPrefix, showVideo: c.showVideo, showWheelOnStream: c.showWheelOnStream });
+      saveConfig({ channel: c.channel, commandPrefix: c.commandPrefix, showVideo: c.showVideo, showWheelOnStream: c.showWheelOnStream, autoplayWhenEmpty: c.autoplayWhenEmpty });
       updateShowVideoButton();
-      send({ type: "SET_VIDEO_VISIBLE", visible: c.showVideo });
+      updateVideoVisibility();
+    });
+  }
+
+  if (autoplayWhenEmptyToggle) {
+    function updateAutoplayToggle() {
+      var c = getConfig();
+      autoplayWhenEmptyToggle.checked = c.autoplayWhenEmpty === true;
+    }
+    updateAutoplayToggle();
+    autoplayWhenEmptyToggle.addEventListener("change", function () {
+      var c = getConfig();
+      c.autoplayWhenEmpty = autoplayWhenEmptyToggle.checked;
+      saveConfig({ channel: c.channel, commandPrefix: c.commandPrefix, showVideo: c.showVideo, showWheelOnStream: c.showWheelOnStream, autoplayWhenEmpty: c.autoplayWhenEmpty });
     });
   }
 
@@ -859,7 +915,7 @@
       var prev = getConfig();
       var channel = (configChannelEl.value || "").trim();
       var commandPrefix = (configCommandEl.value || "").trim().replace(/^!/, "") || DEFAULT_CONFIG.commandPrefix;
-      saveConfig({ channel: channel, commandPrefix: commandPrefix, showVideo: prev.showVideo, showWheelOnStream: prev.showWheelOnStream });
+      saveConfig({ channel: channel, commandPrefix: commandPrefix, showVideo: prev.showVideo, showWheelOnStream: prev.showWheelOnStream, autoplayWhenEmpty: prev.autoplayWhenEmpty });
       if (twitchInitialized) {
         ComfyJS.Disconnect();
         twitchInitialized = false;

@@ -98,6 +98,7 @@ All messages are JSON objects with a `type` field. Property names and types must
 | `LOAD_VIDEO` | Dock → Player | `{ "type": "LOAD_VIDEO", "videoId": string }` |
 | `PLAY` | Dock → Player | `{ "type": "PLAY" }` |
 | `PAUSE` | Dock → Player | `{ "type": "PAUSE" }` |
+| `CLEAR` | Dock → Player | `{ "type": "CLEAR" }` — stops and clears the video (used when queue becomes empty). |
 | `SEEK` | Dock → Player | `{ "type": "SEEK", "timeSeconds": number }` |
 | `SET_VOLUME` | Dock → Player | `{ "type": "SET_VOLUME", "value": number }` — 0–100. |
 | `SET_VIDEO_VISIBLE` | Dock → Player | `{ "type": "SET_VIDEO_VISIBLE", "visible": boolean }` — show or hide video on overlay (audio keeps playing). |
