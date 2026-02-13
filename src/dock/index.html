@@ -54,7 +54,7 @@
     <section class="add-song">
       <h2 class="section-heading">Add Song</h2>
       <div class="add-song-row">
-        <input type="text" id="urlInput" placeholder="YouTube URL or search..." aria-label="YouTube URL" />
+        <input type="text" id="urlInput" placeholder="YouTube URL" aria-label="YouTube URL" />
         <button type="button" id="addUrl" class="btn-add" title="Add">+</button>
       </div>
       <div class="toolbar">
@@ -96,17 +96,53 @@
       <button type="button" id="settingsClose" class="icon-btn" aria-label="Close">×</button>
     </div>
     <div id="settingsConnectionStatus" class="settings-connection-status" role="status" aria-live="polite"></div>
-    <p class="settings-twitch-label"><span id="twitchChannelLabel">Twitch: set your channel in the field below to listen to chat.</span> <span id="twitchStatus"></span></p>
-    <label for="configChannel">Twitch channel to listen to</label>
-    <input type="text" id="configChannel" placeholder="your_channel" />
-    <label for="configCommand">Command prefix (without !)</label>
-    <input type="text" id="configCommand" placeholder="sr" />
-    <label class="settings-checkbox-label">
-      <input type="checkbox" id="autoplayWhenEmptyToggle" />
-      <span>Autoplay when empty</span>
-    </label>
-    <button type="button" id="configSave">Save and reconnect</button>
-    <button type="button" id="twitchDisconnect">Disconnect from Twitch</button>
+    
+    <div class="settings-save-bar">
+      <button type="button" id="configSave" class="settings-save-btn">Save and reconnect</button>
+      <button type="button" id="twitchDisconnect" class="settings-disconnect-btn">Disconnect from Twitch</button>
+    </div>
+
+    <div class="settings-panel-section">
+      <h3 class="settings-section-heading">Twitch Chat</h3>
+      <p class="settings-twitch-label"><span id="twitchChannelLabel">Twitch: set your channel in the field below to listen to chat.</span> <span id="twitchStatus"></span></p>
+      <label for="configChannel">Twitch channel to listen to</label>
+      <input type="text" id="configChannel" placeholder="your_channel" />
+      <label for="configCommand">Command prefix (without !)</label>
+      <input type="text" id="configCommand" placeholder="sr" />
+    </div>
+
+    <div class="settings-panel-section">
+      <h3 class="settings-section-heading">Player</h3>
+      <label class="settings-checkbox-label">
+        <input type="checkbox" id="autoplayWhenEmptyToggle" />
+        <span>Autoplay when empty</span>
+      </label>
+    </div>
+
+    <div class="settings-panel-section">
+      <h3 class="settings-section-heading">Now Playing Overlay</h3>
+      <label for="nowPlayingDisplayMode">Display mode</label>
+      <select id="nowPlayingDisplayMode">
+        <option value="once">Show once</option>
+        <option value="always">Always on</option>
+      </select>
+      <p class="settings-help-text">"Show once" displays all enabled panels once then hides. "Always on" continuously cycles through enabled panels.</p>
+      <label class="settings-checkbox-label">
+        <input type="checkbox" id="nowPlayingShowNext" />
+        <span>Show next song</span>
+      </label>
+      <label class="settings-checkbox-label">
+        <input type="checkbox" id="nowPlayingShowAddMessage" />
+        <span>Show add message</span>
+      </label>
+      <div class="rotation-settings">
+        <label for="nowPlayingPanelDuration">Panel duration (seconds per panel)</label>
+        <input type="range" id="nowPlayingPanelDuration" min="2" max="10" value="3" step="1" />
+        <div class="slider-value">
+          <span id="panelDurationValue">3</span> seconds
+        </div>
+      </div>
+    </div>
   </aside>
 
   <div id="settingsOverlay" class="settings-overlay" aria-hidden="true"></div>

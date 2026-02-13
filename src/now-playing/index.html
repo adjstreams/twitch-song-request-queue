@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Media Request — Now Playing</title>
+  <link rel="stylesheet" href="now-playing.css" />
+</head>
+<body>
+  <div id="now-playing-container" class="hidden">
+    <!-- Current Song View -->
+    <div id="view-current" class="view view-current">
+      <div class="now-playing-thumb" id="current-thumb"></div>
+      <div class="now-playing-info">
+        <p class="now-playing-title" id="current-title">—</p>
+        <p class="now-playing-requested" id="current-requested">Requested by —</p>
+        <div class="progress-wrap">
+          <div class="progress-bar" id="current-progress-bar">
+            <span class="progress-fill" id="current-progress-fill"></span>
+          </div>
+          <span class="progress-times">
+            <span id="current-time">0:00</span> / <span id="current-duration">0:00</span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Next Song Preview View -->
+    <div id="view-next" class="view view-next">
+      <div class="next-song-thumb" id="next-thumb"></div>
+      <div class="next-song-info">
+        <p class="view-label">Up Next</p>
+        <p class="next-song-title" id="next-title">—</p>
+        <p class="next-song-requested" id="next-requested">Requested by —</p>
+      </div>
+    </div>
+
+    <!-- Instruction Message View -->
+    <div id="view-instruction" class="view view-instruction">
+      <p class="instruction-text" id="instruction-text">Add songs using !sr &lt;youtube url&gt;</p>
+    </div>
+  </div>
+
+  <script src="now-playing.js"></script>
+</body>
+</html>

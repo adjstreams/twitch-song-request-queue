@@ -61,6 +61,10 @@
       Player
       <small>Full-screen YouTube player for OBS. Add as a Browser Source in your scene.</small>
     </a>
+    <a href="now-playing/" class="card">
+      Now Playing
+      <small>Overlay showing current song info, progress, and requester. Add as a Browser Source in your scene.</small>
+    </a>
   </div>
 
   <h2>How to use this with OBS</h2>
@@ -74,6 +78,11 @@
       <strong>Add the player as a Browser Source.</strong> In your scene: <strong>Sources → Add → Browser</strong>. Set the URL to:
       <div class="url-box" id="playerUrl">—</div>
       This is the full-screen player that plays the requested videos. Position and size it in your scene.
+    </li>
+    <li>
+      <strong>Add the Now Playing overlay (optional).</strong> In your scene: <strong>Sources → Add → Browser</strong>. Set the URL to:
+      <div class="url-box" id="nowPlayingUrl">—</div>
+      This overlay shows the currently playing song with progress and requester info. Position it where you want it on screen. Configure display duration and rotation in Settings.
     </li>
     <li>
       <strong>Set the channel to listen to.</strong> In the dock, click <strong>Settings</strong>. Enter your <strong>Twitch channel</strong> (the channel name viewers will type <code>!sr</code> in). Optionally set the command prefix (e.g. <code>sr</code> so the command is <code>!sr</code>). Click <strong>Save and reconnect</strong>. When it shows <strong>Connected</strong>, chat requests will be added to the queue.
@@ -96,6 +105,7 @@
       var base = location.origin + location.pathname.replace(/\/$/, "");
       document.getElementById("dockUrl").textContent = base + "/dock/";
       document.getElementById("playerUrl").textContent = base + "/player/";
+      document.getElementById("nowPlayingUrl").textContent = base + "/now-playing/";
       var hostEx = document.getElementById("hostExample");
       if (hostEx) hostEx.textContent = base || "this site";
     })();

@@ -6,7 +6,7 @@
   const DISCONNECT_TIMEOUT_MS = 10000;
   const STORAGE_KEY_QUEUE = "mr-queue";
   const STORAGE_KEY_CONFIG = "mr-config";
-  const DEFAULT_CONFIG = { channel: "", commandPrefix: "sr", showVideo: false, showWheelOnStream: false, autoplayWhenEmpty: false };
+  const DEFAULT_CONFIG = { channel: "", commandPrefix: "sr", showVideo: false, showWheelOnStream: false, autoplayWhenEmpty: false, nowPlayingDisplayMode: "always", nowPlayingShowNext: false, nowPlayingShowAddMessage: false, nowPlayingPanelDuration: 3 };
 
   const overlayStatusEl = document.getElementById("overlayStatus");
   const channelStatusEl = document.getElementById("channelStatus");
@@ -46,6 +46,11 @@
   const spinHint = document.getElementById("spinHint");
   const showWheelOnStreamBtn = document.getElementById("showWheelOnStreamBtn");
   const autoplayWhenEmptyToggle = document.getElementById("autoplayWhenEmptyToggle");
+  const nowPlayingDisplayModeEl = document.getElementById("nowPlayingDisplayMode");
+  const nowPlayingShowNextEl = document.getElementById("nowPlayingShowNext");
+  const nowPlayingShowAddMessageEl = document.getElementById("nowPlayingShowAddMessage");
+  const nowPlayingPanelDurationEl = document.getElementById("nowPlayingPanelDuration");
+  const panelDurationValueEl = document.getElementById("panelDurationValue");
 
   let queue = [];
   let playerConnected = false;
@@ -55,6 +60,7 @@
   let lastPingAt = 0;
   let pingTimeoutId = null;
   let lastProgressDuration = 0;
+  let lastProgressCurrentTime = 0;
   let draggedIndex = -1;
   let spinWinnerItem = null;
   let nowPlayingOverride = null;
@@ -70,9 +76,53 @@
 
   function updateProgress(currentTime, duration) {
     lastProgressDuration = duration;
+    lastProgressCurrentTime = currentTime;
     if (progressFill) progressFill.style.width = duration > 0 ? (100 * currentTime / duration) + "%" : "0%";
     if (progressCurrent) progressCurrent.textContent = formatTime(currentTime);
     if (progressDuration) progressDuration.textContent = formatTime(duration);
+    sendNowPlayingUpdate(currentTime, duration);
+  }
+
+  function sendNowPlayingUpdate(currentTime, duration) {
+    var item = nowPlayingOverride || (queue.length > 0 ? queue[0] : null);
+    if (item) {
+      send({
+        type: "NOW_PLAYING_UPDATE",
+        videoId: item.videoId,
+        title: item.label || item.title || null,
+        requestedBy: item.requestedBy || "—",
+        currentTime: typeof currentTime === "number" ? currentTime : 0,
+        duration: typeof duration === "number" ? duration : 0
+      });
+    } else {
+      send({
+        type: "NOW_PLAYING_UPDATE",
+        videoId: "",
+        title: null,
+        requestedBy: "—",
+        currentTime: 0,
+        duration: 0
+      });
+    }
+  }
+
+  function sendQueueUpdate() {
+    var config = getConfig();
+    send({
+      type: "QUEUE_UPDATE",
+      queue: queue.map(function (item) {
+        return {
+          videoId: item.videoId,
+          title: item.label || item.title || null,
+          requestedBy: item.requestedBy || "—"
+        };
+      }),
+      commandPrefix: config.commandPrefix || "sr",
+      displayMode: config.nowPlayingDisplayMode || "always",
+      showNext: config.nowPlayingShowNext === true,
+      showAddMessage: config.nowPlayingShowAddMessage === true,
+      panelDuration: config.nowPlayingPanelDuration || 3
+    });
   }
 
   function getConfig() {
@@ -87,6 +137,10 @@
             showVideo: parsed.showVideo === true,
             showWheelOnStream: parsed.showWheelOnStream === true,
             autoplayWhenEmpty: parsed.autoplayWhenEmpty === true,
+            nowPlayingDisplayMode: parsed.nowPlayingDisplayMode === "once" || parsed.nowPlayingDisplayMode === "always" ? parsed.nowPlayingDisplayMode : (parsed.nowPlayingDisplayDuration === "always" ? "always" : "once"),
+            nowPlayingShowNext: parsed.nowPlayingShowNext === true,
+            nowPlayingShowAddMessage: parsed.nowPlayingShowAddMessage === true,
+            nowPlayingPanelDuration: typeof parsed.nowPlayingPanelDuration === "number" ? parsed.nowPlayingPanelDuration : (typeof parsed.nowPlayingRotationInterval === "number" ? parsed.nowPlayingRotationInterval : DEFAULT_CONFIG.nowPlayingPanelDuration),
           };
         }
       }
@@ -338,6 +392,8 @@
       progressDuration.textContent = "0:00";
       lastProgressDuration = 0;
     }
+    sendNowPlayingUpdate(lastProgressCurrentTime, lastProgressDuration);
+    sendQueueUpdate();
   }
 
   function updateQueueCount() {
@@ -565,6 +621,10 @@
       }
       if (pingTimeoutId) clearTimeout(pingTimeoutId);
       pingTimeoutId = setTimeout(checkPingTimeout, DISCONNECT_TIMEOUT_MS);
+    } else if (msg.type === "NOW_PLAYING_REQUEST") {
+      // Now-playing overlay is requesting current state
+      sendNowPlayingUpdate(lastProgressCurrentTime, lastProgressDuration);
+      sendQueueUpdate();
     } else if (msg.type === "PLAYER_PROGRESS") {
       if (typeof msg.currentTime === "number" && typeof msg.duration === "number") {
         updateProgress(msg.currentTime, msg.duration);
@@ -854,7 +914,7 @@
     showWheelOnStreamBtn.addEventListener("click", function () {
       var c = getConfig();
       c.showWheelOnStream = !c.showWheelOnStream;
-      saveConfig({ channel: c.channel, commandPrefix: c.commandPrefix, showVideo: c.showVideo, showWheelOnStream: c.showWheelOnStream, autoplayWhenEmpty: c.autoplayWhenEmpty });
+      saveConfig({ channel: c.channel, commandPrefix: c.commandPrefix, showVideo: c.showVideo, showWheelOnStream: c.showWheelOnStream, autoplayWhenEmpty: c.autoplayWhenEmpty, nowPlayingDisplayMode: c.nowPlayingDisplayMode, nowPlayingShowNext: c.nowPlayingShowNext, nowPlayingShowAddMessage: c.nowPlayingShowAddMessage, nowPlayingPanelDuration: c.nowPlayingPanelDuration });
       updateShowWheelOnStreamButton();
       if (c.showWheelOnStream) sendShowWheelOnStream();
       else send({ type: "SPIN_END" });
@@ -877,7 +937,7 @@
     showVideoToggle.addEventListener("click", function () {
       var c = getConfig();
       c.showVideo = !c.showVideo;
-      saveConfig({ channel: c.channel, commandPrefix: c.commandPrefix, showVideo: c.showVideo, showWheelOnStream: c.showWheelOnStream, autoplayWhenEmpty: c.autoplayWhenEmpty });
+      saveConfig({ channel: c.channel, commandPrefix: c.commandPrefix, showVideo: c.showVideo, showWheelOnStream: c.showWheelOnStream, autoplayWhenEmpty: c.autoplayWhenEmpty, nowPlayingDisplayMode: c.nowPlayingDisplayMode, nowPlayingShowNext: c.nowPlayingShowNext, nowPlayingShowAddMessage: c.nowPlayingShowAddMessage, nowPlayingPanelDuration: c.nowPlayingPanelDuration });
       updateShowVideoButton();
       updateVideoVisibility();
     });
@@ -892,7 +952,63 @@
     autoplayWhenEmptyToggle.addEventListener("change", function () {
       var c = getConfig();
       c.autoplayWhenEmpty = autoplayWhenEmptyToggle.checked;
-      saveConfig({ channel: c.channel, commandPrefix: c.commandPrefix, showVideo: c.showVideo, showWheelOnStream: c.showWheelOnStream, autoplayWhenEmpty: c.autoplayWhenEmpty });
+      saveConfig({ channel: c.channel, commandPrefix: c.commandPrefix, showVideo: c.showVideo, showWheelOnStream: c.showWheelOnStream, autoplayWhenEmpty: c.autoplayWhenEmpty, nowPlayingDisplayMode: c.nowPlayingDisplayMode, nowPlayingShowNext: c.nowPlayingShowNext, nowPlayingShowAddMessage: c.nowPlayingShowAddMessage, nowPlayingPanelDuration: c.nowPlayingPanelDuration });
+    });
+  }
+
+  if (nowPlayingDisplayModeEl) {
+    function updateNowPlayingDisplayMode() {
+      var c = getConfig();
+      nowPlayingDisplayModeEl.value = c.nowPlayingDisplayMode || "always";
+    }
+    updateNowPlayingDisplayMode();
+    nowPlayingDisplayModeEl.addEventListener("change", function () {
+      var c = getConfig();
+      c.nowPlayingDisplayMode = nowPlayingDisplayModeEl.value === "once" ? "once" : "always";
+      saveConfig({ channel: c.channel, commandPrefix: c.commandPrefix, showVideo: c.showVideo, showWheelOnStream: c.showWheelOnStream, autoplayWhenEmpty: c.autoplayWhenEmpty, nowPlayingDisplayMode: c.nowPlayingDisplayMode, nowPlayingShowNext: c.nowPlayingShowNext, nowPlayingShowAddMessage: c.nowPlayingShowAddMessage, nowPlayingPanelDuration: c.nowPlayingPanelDuration });
+    });
+  }
+
+  if (nowPlayingShowNextEl) {
+    function updateNowPlayingShowNext() {
+      var c = getConfig();
+      nowPlayingShowNextEl.checked = c.nowPlayingShowNext === true;
+    }
+    updateNowPlayingShowNext();
+    nowPlayingShowNextEl.addEventListener("change", function () {
+      var c = getConfig();
+      c.nowPlayingShowNext = nowPlayingShowNextEl.checked;
+      saveConfig({ channel: c.channel, commandPrefix: c.commandPrefix, showVideo: c.showVideo, showWheelOnStream: c.showWheelOnStream, autoplayWhenEmpty: c.autoplayWhenEmpty, nowPlayingDisplayMode: c.nowPlayingDisplayMode, nowPlayingShowNext: c.nowPlayingShowNext, nowPlayingShowAddMessage: c.nowPlayingShowAddMessage, nowPlayingPanelDuration: c.nowPlayingPanelDuration });
+    });
+  }
+
+  if (nowPlayingShowAddMessageEl) {
+    function updateNowPlayingShowAddMessage() {
+      var c = getConfig();
+      nowPlayingShowAddMessageEl.checked = c.nowPlayingShowAddMessage === true;
+    }
+    updateNowPlayingShowAddMessage();
+    nowPlayingShowAddMessageEl.addEventListener("change", function () {
+      var c = getConfig();
+      c.nowPlayingShowAddMessage = nowPlayingShowAddMessageEl.checked;
+      saveConfig({ channel: c.channel, commandPrefix: c.commandPrefix, showVideo: c.showVideo, showWheelOnStream: c.showWheelOnStream, autoplayWhenEmpty: c.autoplayWhenEmpty, nowPlayingDisplayMode: c.nowPlayingDisplayMode, nowPlayingShowNext: c.nowPlayingShowNext, nowPlayingShowAddMessage: c.nowPlayingShowAddMessage, nowPlayingPanelDuration: c.nowPlayingPanelDuration });
+    });
+  }
+
+  if (nowPlayingPanelDurationEl && panelDurationValueEl) {
+    function updatePanelDuration() {
+      var c = getConfig();
+      var duration = c.nowPlayingPanelDuration || 3;
+      nowPlayingPanelDurationEl.value = duration;
+      panelDurationValueEl.textContent = duration;
+    }
+    updatePanelDuration();
+    nowPlayingPanelDurationEl.addEventListener("input", function () {
+      var duration = parseInt(nowPlayingPanelDurationEl.value, 10);
+      panelDurationValueEl.textContent = duration;
+      var c = getConfig();
+      c.nowPlayingPanelDuration = duration;
+      saveConfig({ channel: c.channel, commandPrefix: c.commandPrefix, showVideo: c.showVideo, showWheelOnStream: c.showWheelOnStream, autoplayWhenEmpty: c.autoplayWhenEmpty, nowPlayingDisplayMode: c.nowPlayingDisplayMode, nowPlayingShowNext: c.nowPlayingShowNext, nowPlayingShowAddMessage: c.nowPlayingShowAddMessage, nowPlayingPanelDuration: c.nowPlayingPanelDuration });
     });
   }
 
@@ -915,7 +1031,7 @@
       var prev = getConfig();
       var channel = (configChannelEl.value || "").trim();
       var commandPrefix = (configCommandEl.value || "").trim().replace(/^!/, "") || DEFAULT_CONFIG.commandPrefix;
-      saveConfig({ channel: channel, commandPrefix: commandPrefix, showVideo: prev.showVideo, showWheelOnStream: prev.showWheelOnStream, autoplayWhenEmpty: prev.autoplayWhenEmpty });
+      saveConfig({ channel: channel, commandPrefix: commandPrefix, showVideo: prev.showVideo, showWheelOnStream: prev.showWheelOnStream, autoplayWhenEmpty: prev.autoplayWhenEmpty, nowPlayingDisplayMode: prev.nowPlayingDisplayMode, nowPlayingShowNext: prev.nowPlayingShowNext, nowPlayingShowAddMessage: prev.nowPlayingShowAddMessage, nowPlayingPanelDuration: prev.nowPlayingPanelDuration });
       if (twitchInitialized) {
         ComfyJS.Disconnect();
         twitchInitialized = false;

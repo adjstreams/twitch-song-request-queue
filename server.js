@@ -89,6 +89,34 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (pathname === "/now-playing" || pathname === "/now-playing/") {
+    if (pathname !== "/now-playing/") {
+      res.writeHead(302, { Location: "/now-playing/" });
+      res.end();
+      return;
+    }
+    const filePath = path.join(ROOT, "src", "now-playing", "index.html");
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("Not found");
+      return;
+    }
+    serveFile(res, filePath);
+    return;
+  }
+
+  if (pathname.startsWith("/now-playing/")) {
+    const subPath = pathname.slice(13) || "index.html";
+    const filePath = path.join(ROOT, "src", "now-playing", path.normalize(subPath).replace(/^(\.\.(\/|\\))+/, ""));
+    if (!filePath.startsWith(path.join(ROOT, "src", "now-playing")) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("Not found");
+      return;
+    }
+    serveFile(res, filePath);
+    return;
+  }
+
   const filePath = path.join(ROOT, path.normalize(pathname).replace(/^(\.\.(\/|\\))+/, ""));
   if (!filePath.startsWith(ROOT) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
     res.writeHead(404, { "Content-Type": "text/plain" });
@@ -100,7 +128,8 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, () => {
   console.log(`Media Request: http://localhost:${PORT}`);
-  console.log(`  Root:   http://localhost:${PORT}/`);
-  console.log(`  Dock:   http://localhost:${PORT}/dock/`);
-  console.log(`  Player: http://localhost:${PORT}/player/`);
+  console.log(`  Root:       http://localhost:${PORT}/`);
+  console.log(`  Dock:       http://localhost:${PORT}/dock/`);
+  console.log(`  Player:     http://localhost:${PORT}/player/`);
+  console.log(`  Now Playing: http://localhost:${PORT}/now-playing/`);
 });

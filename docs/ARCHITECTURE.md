@@ -107,6 +107,8 @@ All messages are JSON objects with a `type` field. Property names and types must
 | `SPIN_START` | Dock → Player | `{ "type": "SPIN_START", "segments": Array<{ videoId, label }>, "winnerIndex": number }` — player shows overlay (dimmed + wheel), wheel animates to winner. |
 | `SPIN_END` | Dock → Player | `{ "type": "SPIN_END" }` — player hides spin overlay. |
 | `VIDEO_ENDED` | Player → Dock | `{ "type": "VIDEO_ENDED", "playerId": string }` |
+| `NOW_PLAYING_UPDATE` | Dock → Now-Playing | `{ "type": "NOW_PLAYING_UPDATE", "videoId": string, "title": string | null, "requestedBy": string, "currentTime": number, "duration": number }` — sent when now-playing song changes or progress updates, combines song info with progress data. |
+| `QUEUE_UPDATE` | Dock → Now-Playing | `{ "type": "QUEUE_UPDATE", "queue": Array<{ videoId: string, title: string | null, requestedBy: string }>, "commandPrefix": string }` — sent when queue changes, allows now-playing page to show next song preview and instruction message. |
 
 **Planned (for Phase 3 features; add when implementing):**
 

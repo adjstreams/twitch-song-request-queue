@@ -6,6 +6,44 @@ This document tracks all expected behaviors of the Twitch Song Request Queue app
 
 ---
 
+## Now Playing Overlay
+
+### Endpoint
+
+- **Now Playing Overlay:**
+  - Separate endpoint `/now-playing/` for OBS Browser Source
+  - Displays currently playing song information as an overlay
+  - Shows: thumbnail, title, requester name, progress bar with time
+  - Can be added separately from the player endpoint
+
+### Display Modes
+
+- **Standard Mode** (rotation disabled):
+  - Shows current song with progress bar
+  - Auto-hides after configured duration (5s, 10s, or always)
+  - Shows again when a new song starts playing
+  - When queue is empty, shows "—" or hides completely
+
+- **Rotation Mode** (rotation enabled):
+  - Cycles through three views with smooth fade transitions:
+    1. **Current song view**: Shows currently playing song with progress bar, title, requester
+    2. **Next song preview**: Shows next song in queue (if available) with thumbnail and title
+    3. **Instruction message**: Shows "Add songs using !{prefix} <youtube url>"
+  - Each view displays for a fixed duration (current: ~4s, next: ~3s, instruction: ~3s)
+  - Overlay stays visible continuously (doesn't auto-hide)
+  - If queue is empty, skips next song view and shows instruction message more frequently
+  - If only one song in queue, skips next song preview view
+  - When song changes, immediately switches to current song view and restarts cycle
+
+### Updates
+
+- Overlay receives `NOW_PLAYING_UPDATE` messages with current song info and progress
+- Overlay receives `QUEUE_UPDATE` messages when queue changes
+- Progress updates in real-time (every second)
+- Song info updates immediately when song changes
+
+---
+
 ## Queue Management
 
 ### Adding Songs to Queue
@@ -211,6 +249,19 @@ This document tracks all expected behaviors of the Twitch Song Request Queue app
   - When enabled, shows wheel overlay on player
   - Saved to localStorage
 
+- **Now Playing Display Duration:**
+  - Select dropdown with options: "5 seconds", "10 seconds", "Always"
+  - Controls how long the Now Playing overlay stays visible (when rotation is disabled)
+  - Default: "5 seconds"
+  - Saved to localStorage
+
+- **Enable Rotation Effect:**
+  - Checkbox toggle
+  - When enabled, Now Playing overlay cycles through: current song, next song preview, instruction message
+  - When disabled, shows only current song and respects display duration setting
+  - Default: disabled
+  - Saved to localStorage
+
 ### Settings Panel
 
 - **Opening:**
@@ -343,7 +394,7 @@ This document tracks all expected behaviors of the Twitch Song Request Queue app
 
 - **Storage:**
   - Configuration saved to localStorage with key `mr-config`
-  - Includes: channel, commandPrefix, showVideo, showWheelOnStream, autoplayWhenEmpty
+  - Includes: channel, commandPrefix, showVideo, showWheelOnStream, autoplayWhenEmpty, nowPlayingDisplayDuration, nowPlayingRotationEnabled
   - Saved when settings are changed
 
 - **Restoration:**
@@ -483,6 +534,10 @@ When making changes, verify these behaviors:
 - [ ] Show wheel on stream works
 - [ ] Now Playing updates correctly
 - [ ] Queue count updates correctly
+- [ ] Now Playing overlay endpoint works
+- [ ] Now Playing overlay shows/hides based on duration setting
+- [ ] Now Playing overlay rotation mode cycles through views correctly
+- [ ] Now Playing overlay shows correct song info and progress
 
 ---
 
