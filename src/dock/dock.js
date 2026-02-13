@@ -517,11 +517,9 @@
 
   function startQueue() {
     if (!playerConnected) return;
-    if (queue.length > 0) {
-      sendLoadAndPlay(queue[0].videoId);
-    } else {
-      send({ type: "PLAY" });
-    }
+    // If there's a current video (override or queue[0]), resume playback instead of restarting
+    // The player's PLAY handler will resume if paused, or play if ended/cued
+    send({ type: "PLAY" });
   }
 
   function stopQueue() {
