@@ -147,31 +147,120 @@
     return "https://img.youtube.com/vi/" + videoId + "/mqdefault.jpg";
   }
 
+  function parseTitleFromHtml(html) {
+    if (!html || typeof html !== "string") return null;
+    // Try og:title meta tag first
+    var ogMatch = html.match(/<meta\s+property=["']og:title["']\s+content=["']([^"']+)["']/i);
+    if (ogMatch && ogMatch[1]) return ogMatch[1];
+    // Try JSON-LD structured data
+    var jsonLdMatch = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i);
+    if (jsonLdMatch && jsonLdMatch[1]) {
+      try {
+        var jsonLd = JSON.parse(jsonLdMatch[1]);
+        if (jsonLd && jsonLd.name && typeof jsonLd.name === "string") return jsonLd.name;
+        if (jsonLd && Array.isArray(jsonLd) && jsonLd[0] && jsonLd[0].name) return jsonLd[0].name;
+      } catch (_) {}
+    }
+    // Try title tag (format: "Video Title - YouTube")
+    var titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    if (titleMatch && titleMatch[1]) {
+      var title = titleMatch[1].trim();
+      if (title.endsWith(" - YouTube")) title = title.slice(0, -10).trim();
+      if (title) return title;
+    }
+    return null;
+  }
+
   function fetchVideoTitle(videoId, callback) {
     if (titleCache[videoId] !== undefined) {
       callback(titleCache[videoId]);
       return;
     }
-    var oembedUrl = "https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=" + encodeURIComponent(videoId) + "&format=json";
-    var proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(oembedUrl);
-    fetch(proxyUrl)
-      .then(function (res) { return res.ok ? res.text() : null; })
-      .then(function (text) {
-        if (!text) { titleCache[videoId] = null; callback(null); return; }
-        try {
-          var data = JSON.parse(text);
-          var title = data && typeof data.title === "string" ? data.title : null;
-          titleCache[videoId] = title;
-          callback(title);
-        } catch (_) {
-          titleCache[videoId] = null;
-          callback(null);
-        }
-      })
-      .catch(function () {
+    var watchUrl = "https://www.youtube.com/watch?v=" + encodeURIComponent(videoId);
+    
+    function tryNextFallback(fallbackIndex) {
+      if (fallbackIndex >= fallbacks.length) {
         titleCache[videoId] = null;
         callback(null);
-      });
+        return;
+      }
+      var fallback = fallbacks[fallbackIndex];
+      fallback()
+        .then(function (title) {
+          if (title) {
+            titleCache[videoId] = title;
+            callback(title);
+          } else {
+            tryNextFallback(fallbackIndex + 1);
+          }
+        })
+        .catch(function () {
+          tryNextFallback(fallbackIndex + 1);
+        });
+    }
+    
+    var fallbacks = [
+      // Primary: Try oEmbed via allOrigins proxy
+      function () {
+        var oembedUrl = "https://www.youtube.com/oembed?url=" + encodeURIComponent(watchUrl) + "&format=json";
+        var proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(oembedUrl);
+        return fetch(proxyUrl)
+          .then(function (res) { return res.ok ? res.text() : Promise.reject(); })
+          .then(function (text) {
+            try {
+              var data = JSON.parse(text);
+              return data && typeof data.title === "string" ? data.title : null;
+            } catch (_) {
+              return null;
+            }
+          })
+          .catch(function () { return null; });
+      },
+      // Fallback 1: Try noembed.com (direct call, no proxy needed)
+      function () {
+        return fetch("https://noembed.com/embed?dataType=json&url=" + encodeURIComponent(watchUrl))
+          .then(function (res) { return res.ok ? res.json() : Promise.reject(); })
+          .then(function (data) {
+            return data && typeof data.title === "string" ? data.title : null;
+          })
+          .catch(function () { return null; });
+      },
+      // Fallback 2: Try alternative CORS proxy (corsproxy.io) for oEmbed
+      function () {
+        var oembedUrl = "https://www.youtube.com/oembed?url=" + encodeURIComponent(watchUrl) + "&format=json";
+        return fetch("https://corsproxy.io/?" + encodeURIComponent(oembedUrl))
+          .then(function (res) { return res.ok ? res.text() : Promise.reject(); })
+          .then(function (text) {
+            try {
+              var data = JSON.parse(text);
+              return data && typeof data.title === "string" ? data.title : null;
+            } catch (_) {
+              return null;
+            }
+          })
+          .catch(function () { return null; });
+      },
+      // Fallback 3: Scrape YouTube watch page HTML via allOrigins
+      function () {
+        return fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent(watchUrl))
+          .then(function (res) { return res.ok ? res.text() : Promise.reject(); })
+          .then(function (html) {
+            return parseTitleFromHtml(html);
+          })
+          .catch(function () { return null; });
+      },
+      // Fallback 4: Try alternative proxy for HTML scraping
+      function () {
+        return fetch("https://corsproxy.io/?" + encodeURIComponent(watchUrl))
+          .then(function (res) { return res.ok ? res.text() : Promise.reject(); })
+          .then(function (html) {
+            return parseTitleFromHtml(html);
+          })
+          .catch(function () { return null; });
+      }
+    ];
+    
+    tryNextFallback(0);
   }
 
   function displayTitle(item) {
