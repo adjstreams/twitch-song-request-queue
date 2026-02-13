@@ -51,6 +51,7 @@ This document tracks all expected behaviors of the Twitch Song Request Queue app
 - **Manual Add via URL Input:**
   - User can paste a YouTube URL (`https://www.youtube.com/watch?v=VIDEO_ID` or `https://youtu.be/VIDEO_ID`) into the URL input field
   - Clicking the "+" button or pressing Enter adds the video to the queue
+  - If the same video (same videoId) is already in the queue, the song is not added and an alert shows: "This song is already in the queue."
   - Invalid URLs show an alert message
   - Added songs appear at the end of the queue
   - Queue count updates immediately
@@ -61,6 +62,7 @@ This document tracks all expected behaviors of the Twitch Song Request Queue app
   - When Twitch is connected, viewers can use `!{commandPrefix} {YouTube URL}` to add songs
   - Command prefix defaults to `sr` (configurable in Settings)
   - Only valid YouTube URLs are processed
+  - If the same video (same videoId) is already in the queue, the request is ignored (no message to chat; song is not added)
   - The requester's Twitch username is stored with the song
   - Songs are added to the end of the queue
   - Queue updates immediately in the dock
@@ -515,6 +517,7 @@ This document tracks all expected behaviors of the Twitch Song Request Queue app
 When making changes, verify these behaviors:
 
 - [ ] Adding songs via URL input works
+- [ ] Duplicate song (same videoId) is rejected for manual add with alert; Twitch duplicate is silently ignored
 - [ ] Adding songs via Twitch chat works
 - [ ] Removing songs works (first and others)
 - [ ] Skipping songs works

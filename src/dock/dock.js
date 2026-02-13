@@ -334,7 +334,13 @@
     });
   }
 
+  function isInQueue(videoId) {
+    if (!videoId || typeof videoId !== "string") return false;
+    return queue.some(function (item) { return item.videoId === videoId; });
+  }
+
   function addToQueue(videoId, requestedBy) {
+    if (isInQueue(videoId)) return false;
     queue.push({ videoId: videoId, requestedBy: requestedBy || "Manual Add" });
     persistQueue();
     renderQueue();
@@ -344,6 +350,7 @@
     if (playerConnected && queue.length === 1 && getConfig().autoplayWhenEmpty) {
       sendLoadAndPlay(queue[0].videoId);
     }
+    return true;
   }
 
   function persistQueue() {
@@ -766,8 +773,11 @@
   addUrlBtn.addEventListener("click", function () {
     var videoId = extractVideoId(urlInputEl.value);
     if (videoId) {
-      addToQueue(videoId);
-      urlInputEl.value = "";
+      if (addToQueue(videoId)) {
+        urlInputEl.value = "";
+      } else {
+        alert("This song is already in the queue.");
+      }
     } else {
       alert("Paste a YouTube URL: https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID");
     }
