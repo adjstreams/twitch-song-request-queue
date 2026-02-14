@@ -16,7 +16,7 @@ body {
   top: 1rem;
   left: 1rem;
   width: 500px;
-  min-height: 100px;
+  min-height: 140px;
   pointer-events: none;
   z-index: 1000;
   transition: top 0.3s ease, bottom 0.3s ease;
@@ -43,6 +43,7 @@ body {
   width: 100%;
   min-height: 140px;
   height: 140px;
+  z-index: 1000;
 }
 
 .view.active {
@@ -223,7 +224,7 @@ body {
   font-weight: 500;
 }
 
-/* Wheel Panel */
+/* Wheel Panel - slides out from bottom of panel (top-left) or top of panel (bottom-left) */
 .wheel-panel {
   position: absolute;
   left: 0;
@@ -235,30 +236,39 @@ body {
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-  transform: translateY(0);
-  opacity: 0;
   visibility: hidden;
-  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, visibility 0.3s ease;
-  z-index: 999;
+  z-index: 1000;
   pointer-events: none;
 }
 
-/* Position wheel above when bottom-left */
-#now-playing-container.position-bottom-left .wheel-panel {
-  bottom: calc(100% + 0.5rem);
-  transform: translateY(20px);
-}
-
-/* Position wheel below when top-left */
+/* Default and top-left: wheel slides down from just below the now-playing panel */
+#now-playing-container .wheel-panel,
 #now-playing-container.position-top-left .wheel-panel {
-  top: calc(100% + 0.5rem);
-  transform: translateY(-20px);
+  top: 100%;
+  margin-top: 0.5rem;
+  transform: translateY(-100%);
+  transition: transform 0.45s cubic-bezier(0.32, 0.72, 0, 1), visibility 0s linear 0.45s;
 }
 
-.wheel-panel.wheel-visible {
-  opacity: 1;
+#now-playing-container .wheel-panel.wheel-visible,
+#now-playing-container.position-top-left .wheel-panel.wheel-visible {
   visibility: visible;
   transform: translateY(0);
+  transition: transform 0.45s cubic-bezier(0.32, 0.72, 0, 1), visibility 0s linear 0s;
+}
+
+/* Bottom-left: wheel slides up from just above the now-playing panel */
+#now-playing-container.position-bottom-left .wheel-panel {
+  bottom: 100%;
+  margin-bottom: 0.5rem;
+  transform: translateY(100%);
+  transition: transform 0.45s cubic-bezier(0.32, 0.72, 0, 1), visibility 0s linear 0.45s;
+}
+
+#now-playing-container.position-bottom-left .wheel-panel.wheel-visible {
+  visibility: visible;
+  transform: translateY(0);
+  transition: transform 0.45s cubic-bezier(0.32, 0.72, 0, 1), visibility 0s linear 0s;
 }
 
 .wheel-wrap {

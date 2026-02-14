@@ -9,14 +9,17 @@
 </head>
 <body>
   <header class="dock-header">
-    <h1 class="dock-title">Song Requests</h1>
-    <div class="dock-header-right">
-      <div class="header-status" aria-label="Connection status">
-        <span id="overlayStatus" class="status-indicator" title="Player (overlay) connection"><span class="status-dot" aria-hidden="true"></span><span class="status-label">Overlay</span></span>
-        <span id="channelStatus" class="status-indicator" title="Twitch channel connection"><span class="status-dot" aria-hidden="true"></span><span class="status-label">Channel</span></span>
+    <div class="dock-header-top">
+      <h1 class="dock-title">Song Requests</h1>
+      <div class="dock-header-right">
+        <span id="queueCount" class="queue-count">0 in queue</span>
+        <button type="button" id="settingsToggle" class="header-settings-btn icon-btn" title="Settings" aria-label="Settings">⚙</button>
       </div>
-      <span id="queueCount" class="queue-count">0 in queue</span>
-      <button type="button" id="settingsToggle" class="header-settings-btn icon-btn" title="Settings" aria-label="Settings">⚙</button>
+    </div>
+    <div class="header-status" aria-label="Connection status">
+      <span id="overlayStatus" class="status-indicator" title="Player overlay connection"><span class="status-dot" aria-hidden="true"></span><span class="status-label">Player</span></span>
+      <span id="nowPlayingStatus" class="status-indicator" title="Now Playing overlay connection"><span class="status-dot" aria-hidden="true"></span><span class="status-label">Now Playing</span></span>
+      <span id="channelStatus" class="status-indicator" title="Twitch channel connection"><span class="status-dot" aria-hidden="true"></span><span class="status-label">Channel</span></span>
     </div>
   </header>
 

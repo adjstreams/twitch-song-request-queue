@@ -2,6 +2,7 @@
   "use strict";
 
   const BC_NAME = "streamgood-mr";
+  const PING_INTERVAL_MS = 3000;
 
   var bc = new BroadcastChannel(BC_NAME);
   var container = document.getElementById("now-playing-container");
@@ -48,7 +49,7 @@
   function buildWinwheelSegments(segs) {
     return segs.map(function (s, i) {
       var label = (s.label && String(s.label).trim()) || "—";
-      if (label.length > 15) label = label.slice(0, 14) + "…";
+      if (label.length > 12) label = label.slice(0, 11) + "…";
       return { fillStyle: WHEEL_COLORS[i % WHEEL_COLORS.length], text: label };
     });
   }
@@ -425,8 +426,10 @@
 
     if (msg.type === "NOW_PLAYING_UPDATE") {
       handleNowPlayingUpdate(msg);
+      bc.postMessage({ type: "NOW_PLAYING_PING" });
     } else if (msg.type === "QUEUE_UPDATE") {
       handleQueueUpdate(msg);
+      bc.postMessage({ type: "NOW_PLAYING_PING" });
     } else if (msg.type === "SPIN_SHOW_WHEEL") {
       if (msg.target === "now-playing" || (!msg.target && wheelDisplayLocation === "now-playing")) {
         if (wheelPanel && wheelCanvas && typeof Winwheel !== "undefined") {
@@ -454,6 +457,7 @@
         if (wheelPanel && wheelCanvas && Array.isArray(msg.segments) && typeof msg.winnerIndex === "number" && typeof Winwheel !== "undefined") {
           showWheel();
           var segs = msg.segments;
+          var startIn = typeof msg.startIn === "number" ? msg.startIn : 0;
           spinWheel = new Winwheel({
             canvasId: "wheel-canvas",
             numSegments: segs.length,
@@ -464,8 +468,15 @@
             strokeStyle: "rgba(0,0,0,0.3)",
             lineWidth: 1
           });
-          spinWheel.animation.stopAngle = spinWheel.getRandomForSegment(msg.winnerIndex + 1);
-          spinWheel.startAnimation();
+          spinWheel.animation.stopAngle = typeof msg.stopAngle === "number" ? msg.stopAngle : spinWheel.getRandomForSegment(msg.winnerIndex + 1);
+          var startAnimation = function () {
+            if (spinWheel) spinWheel.startAnimation();
+          };
+          if (startIn > 0) {
+            setTimeout(startAnimation, startIn);
+          } else {
+            startAnimation();
+          }
         }
       }
     } else if (msg.type === "SPIN_END") {
@@ -502,4 +513,12 @@
   
   // Request initial update after a short delay to ensure dock is ready
   setTimeout(requestInitialUpdate, 100);
+
+  // Identify ourselves so the dock can show Now Playing overlay connection status
+  bc.postMessage({ type: "NOW_PLAYING_HELLO" });
+  setInterval(function () {
+    bc.postMessage({ type: "NOW_PLAYING_PING" });
+  }, PING_INTERVAL_MS);
+  // Periodically request state so the dock sees us even if it opened after we did
+  setInterval(requestInitialUpdate, 5000);
 })();

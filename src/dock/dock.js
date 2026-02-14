@@ -9,6 +9,7 @@
   const DEFAULT_CONFIG = { channel: "", commandPrefix: "sr", showVideo: false, wheelDisplayLocation: "now-playing", nowPlayingPosition: "top-left", shuffleMode: false, autoplayWhenEmpty: false, nowPlayingDisplayMode: "always", nowPlayingShowNext: false, nowPlayingShowAddMessage: false, nowPlayingPanelDuration: 3 };
 
   const overlayStatusEl = document.getElementById("overlayStatus");
+  const nowPlayingStatusEl = document.getElementById("nowPlayingStatus");
   const channelStatusEl = document.getElementById("channelStatus");
   const settingsConnectionStatusEl = document.getElementById("settingsConnectionStatus");
   const queueListEl = document.getElementById("queueList");
@@ -61,12 +62,16 @@
   let twitchConnectionState = "disconnected";
   let lastPingAt = 0;
   let pingTimeoutId = null;
+  let lastNowPlayingPingAt = 0;
+  let nowPlayingPingTimeoutId = null;
+  let nowPlayingConnected = false;
   let lastProgressDuration = 0;
   let lastProgressCurrentTime = 0;
   let draggedIndex = -1;
   let spinWinnerItem = null;
   let spinWheel = null;
   let nowPlayingOverride = null;
+  let isSpinnerTabActive = false;
   const titleCache = {};
   const WHEEL_COLORS = ["#a855f7", "#7c3aed", "#6d28d9", "#5b21b6", "#4c1d95"];
 
@@ -200,7 +205,12 @@
     var overlayDot = overlayStatusEl && overlayStatusEl.querySelector(".status-dot");
     if (overlayDot) {
       overlayDot.className = "status-dot " + (playerConnected ? "connected" : playerStatus === "waiting" ? "waiting" : "disconnected");
-      overlayStatusEl.title = playerConnected ? "Player (overlay) is connected — videos will play in OBS." : (playerStatus === "waiting" ? "Connecting to player… Open the player as a Browser Source in OBS." : "Player disconnected — open the player as a Browser Source in OBS.");
+      overlayStatusEl.title = playerConnected ? "Player overlay is connected — videos will play in OBS." : (playerStatus === "waiting" ? "Connecting to player… Open the player as a Browser Source in OBS." : "Player disconnected — open the player as a Browser Source in OBS.");
+    }
+    var nowPlayingDot = nowPlayingStatusEl && nowPlayingStatusEl.querySelector(".status-dot");
+    if (nowPlayingDot) {
+      nowPlayingDot.className = "status-dot " + (nowPlayingConnected ? "connected" : "disconnected");
+      nowPlayingStatusEl.title = nowPlayingConnected ? "Now Playing overlay is connected — song info will show in OBS." : "Now Playing overlay disconnected — open the Now Playing overlay as a Browser Source in OBS.";
     }
     var channelDot = channelStatusEl && channelStatusEl.querySelector(".status-dot");
     if (channelDot) {
@@ -215,13 +225,14 @@
 
   function updateSettingsConnectionStatus() {
     if (!settingsConnectionStatusEl) return;
-    var overlayText = playerConnected ? "Connected" : (playerStatus === "waiting" ? "Connecting…" : "Disconnected");
+    var playerText = playerConnected ? "Connected" : (playerStatus === "waiting" ? "Connecting…" : "Disconnected");
+    var nowPlayingText = nowPlayingConnected ? "Connected" : "Disconnected";
     var channelText = twitchConnectionState === "connected" ? "Connected" : (twitchConnectionState === "connecting" ? "Reconnecting…" : "Disconnected");
     var config = getConfig();
     if (!(config.channel && config.channel.trim())) channelText = "Set channel below";
-    settingsConnectionStatusEl.textContent = "Overlay: " + overlayText + " · Twitch: " + channelText;
+    settingsConnectionStatusEl.textContent = "Player: " + playerText + " · Now Playing: " + nowPlayingText + " · Twitch: " + channelText;
     var state = "disconnected";
-    if (playerConnected && twitchConnectionState === "connected") state = "connected";
+    if (playerConnected && nowPlayingConnected && twitchConnectionState === "connected") state = "connected";
     else if (playerStatus === "waiting" || twitchConnectionState === "connecting") state = "waiting";
     settingsConnectionStatusEl.className = "settings-connection-status state-" + state;
   }
@@ -613,9 +624,9 @@
       queueListEl.appendChild(li);
     });
     updateSpinButtonState();
-    // Update wheel on overlays if visible
+    // Update wheel on overlays only when Spin the Wheel tab is active
     var cfg = getConfig();
-    if (cfg.wheelDisplayLocation !== "none") {
+    if (isSpinnerTabActive && cfg.wheelDisplayLocation !== "none") {
       sendShowWheelOnStream();
     }
   }
@@ -631,12 +642,29 @@
         setStatus("connected");
         var cfg = getConfig();
         updateVideoVisibility();
-        if (cfg.wheelDisplayLocation !== "none") sendShowWheelOnStream();
+        if (isSpinnerTabActive && cfg.wheelDisplayLocation !== "none") sendShowWheelOnStream();
       }
       if (pingTimeoutId) clearTimeout(pingTimeoutId);
       pingTimeoutId = setTimeout(checkPingTimeout, DISCONNECT_TIMEOUT_MS);
+    } else if (msg.type === "NOW_PLAYING_HELLO" || msg.type === "NOW_PLAYING_PING") {
+      lastNowPlayingPingAt = Date.now();
+      if (!nowPlayingConnected) {
+        nowPlayingConnected = true;
+        updateHeaderStatus();
+        updateSettingsConnectionStatus();
+      }
+      if (nowPlayingPingTimeoutId) clearTimeout(nowPlayingPingTimeoutId);
+      nowPlayingPingTimeoutId = setTimeout(checkNowPlayingPingTimeout, DISCONNECT_TIMEOUT_MS);
     } else if (msg.type === "NOW_PLAYING_REQUEST") {
-      // Now-playing overlay is requesting current state
+      // Now-playing overlay is requesting current state — treat as connection signal (same as HELLO/PING)
+      lastNowPlayingPingAt = Date.now();
+      if (!nowPlayingConnected) {
+        nowPlayingConnected = true;
+        updateHeaderStatus();
+        updateSettingsConnectionStatus();
+      }
+      if (nowPlayingPingTimeoutId) clearTimeout(nowPlayingPingTimeoutId);
+      nowPlayingPingTimeoutId = setTimeout(checkNowPlayingPingTimeout, DISCONNECT_TIMEOUT_MS);
       sendNowPlayingUpdate(lastProgressCurrentTime, lastProgressDuration);
       sendQueueUpdate();
     } else if (msg.type === "PLAYER_PROGRESS") {
@@ -649,16 +677,15 @@
         // Shuffle mode: spin wheel and play winner
         var winnerIndex = Math.floor(Math.random() * queue.length);
         var segments = queue.map(function (item) {
-          return { videoId: item.videoId, label: item.title || item.videoId };
+          return { videoId: item.videoId, label: displayTitle(item) };
         });
         var winnerItem = queue[winnerIndex];
-        
-        // Send spin animation if wheel is visible
         if (cfg.wheelDisplayLocation !== "none") {
           send({
             type: "SPIN_START",
             segments: segments,
             winnerIndex: winnerIndex,
+            startIn: 0,
             target: cfg.wheelDisplayLocation
           });
         }
@@ -708,6 +735,15 @@
     if (Date.now() - lastPingAt >= DISCONNECT_TIMEOUT_MS) {
       setStatus("disconnected");
       pingTimeoutId = null;
+    }
+  }
+
+  function checkNowPlayingPingTimeout() {
+    if (Date.now() - lastNowPlayingPingAt >= DISCONNECT_TIMEOUT_MS) {
+      nowPlayingConnected = false;
+      nowPlayingPingTimeoutId = null;
+      updateHeaderStatus();
+      updateSettingsConnectionStatus();
     }
   }
 
@@ -855,18 +891,29 @@
     });
   }
 
+  function switchToQueueTab() {
+    if (!tabQueue || !tabSpinner || !panelQueue || !panelSpinner) return;
+    isSpinnerTabActive = false;
+    tabQueue.classList.add("active");
+    tabQueue.setAttribute("aria-selected", "true");
+    tabSpinner.classList.remove("active");
+    tabSpinner.setAttribute("aria-selected", "false");
+    panelQueue.classList.add("active");
+    panelQueue.hidden = false;
+    panelSpinner.classList.remove("active");
+    panelSpinner.hidden = true;
+    var cfg = getConfig();
+    if (cfg.wheelDisplayLocation !== "none") {
+      send({ type: "SPIN_END", target: cfg.wheelDisplayLocation });
+    }
+  }
+
   if (tabQueue && tabSpinner && panelQueue && panelSpinner) {
     tabQueue.addEventListener("click", function () {
-      tabQueue.classList.add("active");
-      tabQueue.setAttribute("aria-selected", "true");
-      tabSpinner.classList.remove("active");
-      tabSpinner.setAttribute("aria-selected", "false");
-      panelQueue.classList.add("active");
-      panelQueue.hidden = false;
-      panelSpinner.classList.remove("active");
-      panelSpinner.hidden = true;
+      switchToQueueTab();
     });
     tabSpinner.addEventListener("click", function () {
+      isSpinnerTabActive = true;
       tabSpinner.classList.add("active");
       tabSpinner.setAttribute("aria-selected", "true");
       tabQueue.classList.remove("active");
@@ -875,6 +922,7 @@
       panelSpinner.hidden = false;
       panelQueue.classList.remove("active");
       panelQueue.hidden = true;
+      if (getConfig().wheelDisplayLocation !== "none") sendShowWheelOnStream();
       updateSpinButtonState();
     });
   }
@@ -907,17 +955,8 @@
       var winnerIndex = Math.floor(Math.random() * segments.length);
       spinWinnerItem = { videoId: segments[winnerIndex].videoId, label: segments[winnerIndex].label };
       var cfg = getConfig();
-      if (cfg.wheelDisplayLocation !== "none") {
-        send({
-          type: "SPIN_START",
-          segments: segments,
-          winnerIndex: winnerIndex,
-          target: cfg.wheelDisplayLocation
-        });
-      }
-      if (spinResult) spinResult.hidden = true;
-      if (spinWheelWrap) spinWheelWrap.hidden = false;
-      spinBtn.disabled = true;
+      var startInMs = 80;
+      var stopAngle = null;
       if (typeof Winwheel !== "undefined" && spinWheelCanvas) {
         spinWheel = new Winwheel({
           canvasId: "spinWheelCanvas",
@@ -929,10 +968,30 @@
           strokeStyle: "rgba(0,0,0,0.3)",
           lineWidth: 1
         });
-        spinWheel.animation.stopAngle = spinWheel.getRandomForSegment(winnerIndex + 1);
-        spinWheel.startAnimation();
+        stopAngle = spinWheel.getRandomForSegment(winnerIndex + 1);
+        spinWheel.animation.stopAngle = stopAngle;
+      }
+      if (cfg.wheelDisplayLocation !== "none") {
+        send({
+          type: "SPIN_START",
+          segments: segments,
+          winnerIndex: winnerIndex,
+          stopAngle: stopAngle,
+          startIn: startInMs,
+          target: cfg.wheelDisplayLocation
+        });
+      }
+      if (spinResult) spinResult.hidden = true;
+      if (spinWheelWrap) spinWheelWrap.hidden = false;
+      spinBtn.disabled = true;
+      if (spinWheel) {
+        setTimeout(function () {
+          if (spinWheel) spinWheel.startAnimation();
+        }, startInMs);
       } else {
-        window.onDockWheelSpinComplete();
+        setTimeout(function () {
+          window.onDockWheelSpinComplete();
+        }, startInMs);
       }
     });
   }
@@ -957,6 +1016,7 @@
       if (spinResult) spinResult.hidden = true;
       updateSpinButtonState();
       updateNowPlaying();
+      switchToQueueTab();
     });
   }
 
@@ -1100,11 +1160,11 @@
       }
       saveConfigWithDefaults({ wheelDisplayLocation: location });
       updateWheelDisplayLocation();
-      // Hide wheel on previous location, show on new location
+      // Hide wheel on previous location, show on new location only when spinner tab is active
       if (prevLocation !== "none") {
         send({ type: "SPIN_END", target: prevLocation });
       }
-      if (location !== "none") {
+      if (location !== "none" && isSpinnerTabActive) {
         sendShowWheelOnStream();
       }
     });

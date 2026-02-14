@@ -18,7 +18,7 @@
   function buildWinwheelSegments(segs) {
     return segs.map(function (s, i) {
       var label = (s.label && String(s.label).trim()) || "—";
-      if (label.length > 18) label = label.slice(0, 17) + "…";
+      if (label.length > 12) label = label.slice(0, 11) + "…";
       return { fillStyle: WHEEL_COLORS[i % WHEEL_COLORS.length], text: label };
     });
   }
@@ -116,6 +116,7 @@
           spinOverlayEl.hidden = false;
           spinOverlayEl.setAttribute("aria-hidden", "false");
           var segs = msg.segments;
+          var startIn = typeof msg.startIn === "number" ? msg.startIn : 0;
           spinWheel = new Winwheel({
             canvasId: "spin-overlay-canvas",
             numSegments: segs.length,
@@ -126,20 +127,29 @@
             strokeStyle: "rgba(0,0,0,0.3)",
             lineWidth: 1
           });
-          spinWheel.animation.stopAngle = spinWheel.getRandomForSegment(msg.winnerIndex + 1);
-          spinWheel.startAnimation();
+          spinWheel.animation.stopAngle = typeof msg.stopAngle === "number" ? msg.stopAngle : spinWheel.getRandomForSegment(msg.winnerIndex + 1);
+          var startAnimation = function () {
+            if (spinWheel) spinWheel.startAnimation();
+          };
+          if (startIn > 0) {
+            setTimeout(startAnimation, startIn);
+          } else {
+            startAnimation();
+          }
         }
       }
       return;
     }
 
     if (msg.type === "SPIN_END") {
-      if (spinOverlayEl) {
-        spinOverlayEl.classList.remove("spin-overlay-visible");
-        spinOverlayEl.hidden = true;
-        spinOverlayEl.setAttribute("aria-hidden", "true");
+      if (msg.target === "player" || !msg.target) {
+        if (spinOverlayEl) {
+          spinOverlayEl.classList.remove("spin-overlay-visible");
+          spinOverlayEl.hidden = true;
+          spinOverlayEl.setAttribute("aria-hidden", "true");
+        }
+        spinWheel = null;
       }
-      spinWheel = null;
       return;
     }
 
