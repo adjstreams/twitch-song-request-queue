@@ -72,10 +72,7 @@
 
   <div id="panelSpinner" class="tab-panel" role="tabpanel" hidden>
     <section class="spin-section">
-      <div class="spin-section-header">
-        <h2 class="section-heading">Spin the Wheel</h2>
-        <button type="button" id="showWheelOnStreamBtn" class="icon-btn spin-wheel-stream-toggle" title="Show wheel on stream" aria-pressed="false" aria-label="Show wheel on stream">👁</button>
-      </div>
+      <h2 class="section-heading">Spin the Wheel</h2>
       <p class="spin-hint" id="spinHint">Add songs to the queue, then spin to pick one.</p>
       <div class="spin-wheel-wrap" id="spinWheelWrap" hidden>
         <canvas id="spinWheelCanvas" class="spin-wheel-canvas" width="240" height="240" aria-hidden="true"></canvas>
@@ -121,6 +118,11 @@
 
     <div class="settings-panel-section">
       <h3 class="settings-section-heading">Now Playing Overlay</h3>
+      <label for="nowPlayingPosition">Overlay position</label>
+      <select id="nowPlayingPosition">
+        <option value="top-left">Top Left</option>
+        <option value="bottom-left">Bottom Left</option>
+      </select>
       <label for="nowPlayingDisplayMode">Display mode</label>
       <select id="nowPlayingDisplayMode">
         <option value="once">Show once</option>
@@ -143,10 +145,28 @@
         </div>
       </div>
     </div>
+
+    <div class="settings-panel-section">
+      <h3 class="settings-section-heading">Spin the Wheel</h3>
+      <label for="wheelDisplayLocation">Wheel display location</label>
+      <select id="wheelDisplayLocation">
+        <option value="none">None</option>
+        <option value="now-playing">Now Playing Overlay</option>
+        <option value="player">Player Overlay</option>
+      </select>
+      <p class="settings-help-text">Choose where the wheel appears when visible. Only one location can be active at a time.</p>
+      <label class="settings-checkbox-label">
+        <input type="checkbox" id="shuffleMode" />
+        <span>Shuffle mode</span>
+      </label>
+      <p class="settings-help-text">When enabled, automatically spins the wheel after each song finishes and plays the winner.</p>
+    </div>
   </aside>
 
   <div id="settingsOverlay" class="settings-overlay" aria-hidden="true"></div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/1.20.4/TweenMax.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/zarocknz/javascript-winwheel@master/Winwheel.min.js"></script>
   <script src="dock.js"></script>
 </body>
 </html>

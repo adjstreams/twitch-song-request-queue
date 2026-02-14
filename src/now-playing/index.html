@@ -8,6 +8,14 @@
 </head>
 <body>
   <div id="now-playing-container" class="hidden">
+    <!-- Wheel Panel -->
+    <div id="wheel-panel" class="wheel-panel" aria-hidden="true" hidden>
+      <div class="wheel-wrap">
+        <canvas id="wheel-canvas" class="wheel-canvas" width="200" height="200" aria-hidden="true"></canvas>
+        <div class="wheel-pointer" aria-hidden="true"></div>
+      </div>
+    </div>
+
     <!-- Current Song View -->
     <div id="view-current" class="view view-current">
       <div class="now-playing-thumb" id="current-thumb"></div>
@@ -41,6 +49,8 @@
     </div>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/1.20.4/TweenMax.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/zarocknz/javascript-winwheel@master/Winwheel.min.js"></script>
   <script src="now-playing.js"></script>
 </body>
 </html>

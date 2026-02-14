@@ -485,31 +485,6 @@ body {
   border: 1px solid var(--border);
 }
 
-.spin-section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.spin-section-header .section-heading {
-  margin: 0;
-}
-
-.spin-wheel-stream-toggle {
-  padding: 0.35rem 0.5rem;
-  font-size: 1rem;
-}
-
-.spin-wheel-stream-toggle[aria-pressed="true"] {
-  opacity: 1;
-}
-
-.spin-wheel-stream-toggle[aria-pressed="false"] {
-  opacity: 0.6;
-}
-
 .spin-hint {
   margin: 0 0 1rem 0;
   color: var(--text-muted);
@@ -566,7 +541,8 @@ body {
 }
 
 .spin-result .btn-spin {
-  margin: 0;
+  display: block;
+  margin: 0.75rem auto 0;
 }
 
 .btn-spin {
@@ -578,6 +554,8 @@ body {
   border-radius: 8px;
   color: white;
   cursor: pointer;
+  display: block;
+  margin: 0 auto;
 }
 
 .btn-spin:hover:not(:disabled) {

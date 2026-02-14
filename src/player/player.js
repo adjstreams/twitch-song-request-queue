@@ -13,7 +13,15 @@
   var spinOverlayCanvas = document.getElementById("spin-overlay-canvas");
   var playWhenReady = false;
   var WHEEL_COLORS = ["#a855f7", "#7c3aed", "#6d28d9", "#5b21b6", "#4c1d95"];
-  var spinAnimationId = null;
+  var spinWheel = null;
+
+  function buildWinwheelSegments(segs) {
+    return segs.map(function (s, i) {
+      var label = (s.label && String(s.label).trim()) || "—";
+      if (label.length > 18) label = label.slice(0, 17) + "…";
+      return { fillStyle: WHEEL_COLORS[i % WHEEL_COLORS.length], text: label };
+    });
+  }
 
   function send(msg) {
     var payload = {};
@@ -62,65 +70,6 @@
 
   window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
 
-  function drawWheel(ctx, segments, rotationDeg, size) {
-    var cx = size;
-    var cy = size;
-    var r = size - 4;
-    var n = segments.length;
-    if (n === 0) return;
-    var step = (2 * Math.PI) / n;
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate((rotationDeg * Math.PI) / 180);
-    ctx.translate(-cx, -cy);
-    for (var i = 0; i < n; i++) {
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.arc(cx, cy, r, i * step, (i + 1) * step);
-      ctx.closePath();
-      ctx.fillStyle = WHEEL_COLORS[i % WHEEL_COLORS.length];
-      ctx.fill();
-      ctx.strokeStyle = "rgba(0,0,0,0.3)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      var midAngle = (i + 0.5) * step;
-      var label = segments[i].label;
-      if (label && label.length > 18) label = label.slice(0, 17) + "…";
-      ctx.save();
-      ctx.translate(cx + (r * 0.6) * Math.sin(midAngle), cy - (r * 0.6) * Math.cos(midAngle));
-      ctx.rotate(midAngle);
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillStyle = "#fff";
-      ctx.font = "16px sans-serif";
-      ctx.fillText(label || "", 0, 0);
-      ctx.restore();
-    }
-    ctx.restore();
-  }
-
-  function runSpinAnimation(canvas, segments, winnerIndex, durationMs) {
-    var ctx = canvas.getContext("2d");
-    var size = Math.min(canvas.width, canvas.height) / 2;
-    var n = segments.length;
-    if (n === 0) return;
-    var spins = 5;
-    var segmentDeg = 360 / n;
-    var endRotation = spins * 360 + (360 - (winnerIndex + 0.5) * segmentDeg);
-    var startTime = null;
-    function frame(t) {
-      if (!startTime) startTime = t;
-      var elapsed = t - startTime;
-      var progress = Math.min(1, elapsed / durationMs);
-      var ease = 1 - Math.pow(1 - progress, 3);
-      var rotation = endRotation * ease;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawWheel(ctx, segments, rotation, size);
-      if (progress < 1) spinAnimationId = requestAnimationFrame(frame);
-    }
-    spinAnimationId = requestAnimationFrame(frame);
-  }
-
   bc.onmessage = function (e) {
     var msg = e.data;
     if (!msg || typeof msg.type !== "string") return;
@@ -134,28 +83,52 @@
     }
 
     if (msg.type === "SPIN_SHOW_WHEEL") {
-      if (spinOverlayEl && spinOverlayCanvas) {
-        spinOverlayEl.classList.add("spin-overlay-visible");
-        spinOverlayEl.hidden = false;
-        spinOverlayEl.setAttribute("aria-hidden", "false");
-        if (spinAnimationId != null) cancelAnimationFrame(spinAnimationId);
-        spinAnimationId = null;
-        var segments = Array.isArray(msg.segments) ? msg.segments : [];
-        var ctx = spinOverlayCanvas.getContext("2d");
-        var size = Math.min(spinOverlayCanvas.width, spinOverlayCanvas.height) / 2;
-        ctx.clearRect(0, 0, spinOverlayCanvas.width, spinOverlayCanvas.height);
-        if (segments.length > 0) drawWheel(ctx, segments, 0, size);
+      if (msg.target === "player" || !msg.target) {
+        if (spinOverlayEl && spinOverlayCanvas && typeof Winwheel !== "undefined") {
+          spinOverlayEl.classList.add("spin-overlay-visible");
+          spinOverlayEl.hidden = false;
+          spinOverlayEl.setAttribute("aria-hidden", "false");
+          var segments = Array.isArray(msg.segments) ? msg.segments : [];
+          if (segments.length > 0) {
+            spinWheel = new Winwheel({
+              canvasId: "spin-overlay-canvas",
+              numSegments: segments.length,
+              segments: buildWinwheelSegments(segments),
+              textFontSize: 16,
+              textFillStyle: "#fff",
+              strokeStyle: "rgba(0,0,0,0.3)",
+              lineWidth: 1
+            });
+          } else {
+            var ctx = spinOverlayCanvas.getContext("2d");
+            if (ctx) ctx.clearRect(0, 0, spinOverlayCanvas.width, spinOverlayCanvas.height);
+            spinWheel = null;
+          }
+        }
       }
       return;
     }
 
     if (msg.type === "SPIN_START") {
-      if (spinOverlayEl && spinOverlayCanvas && Array.isArray(msg.segments) && typeof msg.winnerIndex === "number") {
-        spinOverlayEl.classList.add("spin-overlay-visible");
-        spinOverlayEl.hidden = false;
-        spinOverlayEl.setAttribute("aria-hidden", "false");
-        if (spinAnimationId != null) cancelAnimationFrame(spinAnimationId);
-        runSpinAnimation(spinOverlayCanvas, msg.segments, msg.winnerIndex, 4000);
+      if (msg.target === "player" || !msg.target) {
+        if (spinOverlayEl && spinOverlayCanvas && Array.isArray(msg.segments) && typeof msg.winnerIndex === "number" && typeof Winwheel !== "undefined") {
+          spinOverlayEl.classList.add("spin-overlay-visible");
+          spinOverlayEl.hidden = false;
+          spinOverlayEl.setAttribute("aria-hidden", "false");
+          var segs = msg.segments;
+          spinWheel = new Winwheel({
+            canvasId: "spin-overlay-canvas",
+            numSegments: segs.length,
+            segments: buildWinwheelSegments(segs),
+            animation: { type: "spinToStop", duration: 4, spins: 5 },
+            textFontSize: 16,
+            textFillStyle: "#fff",
+            strokeStyle: "rgba(0,0,0,0.3)",
+            lineWidth: 1
+          });
+          spinWheel.animation.stopAngle = spinWheel.getRandomForSegment(msg.winnerIndex + 1);
+          spinWheel.startAnimation();
+        }
       }
       return;
     }
@@ -166,10 +139,7 @@
         spinOverlayEl.hidden = true;
         spinOverlayEl.setAttribute("aria-hidden", "true");
       }
-      if (spinAnimationId != null) {
-        cancelAnimationFrame(spinAnimationId);
-        spinAnimationId = null;
-      }
+      spinWheel = null;
       return;
     }
 

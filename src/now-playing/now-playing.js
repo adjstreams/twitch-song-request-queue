@@ -25,6 +25,10 @@
   // Instruction element
   var instructionText = document.getElementById("instruction-text");
 
+  // Wheel elements
+  var wheelPanel = document.getElementById("wheel-panel");
+  var wheelCanvas = document.getElementById("wheel-canvas");
+
   var currentSong = null;
   var queue = [];
   var commandPrefix = "sr";
@@ -37,6 +41,17 @@
   var currentRotationView = "current"; // "current", "next", "instruction"
   var panelsShown = 0; // Track how many panels shown in "once" mode
   var enabledPanels = []; // Array of panel names to show
+  var wheelDisplayLocation = "now-playing";
+  var WHEEL_COLORS = ["#a855f7", "#7c3aed", "#6d28d9", "#5b21b6", "#4c1d95"];
+  var spinWheel = null;
+
+  function buildWinwheelSegments(segs) {
+    return segs.map(function (s, i) {
+      var label = (s.label && String(s.label).trim()) || "—";
+      if (label.length > 15) label = label.slice(0, 14) + "…";
+      return { fillStyle: WHEEL_COLORS[i % WHEEL_COLORS.length], text: label };
+    });
+  }
 
   function formatTime(seconds) {
     if (typeof seconds !== "number" || !isFinite(seconds) || seconds < 0) return "0:00";
@@ -47,6 +62,26 @@
 
   function thumbnailUrl(videoId) {
     return "https://img.youtube.com/vi/" + videoId + "/mqdefault.jpg";
+  }
+
+  function showWheel() {
+    if (wheelPanel && wheelDisplayLocation === "now-playing") {
+      wheelPanel.classList.add("wheel-visible");
+      wheelPanel.hidden = false;
+      wheelPanel.setAttribute("aria-hidden", "false");
+    }
+  }
+
+  function hideWheel() {
+    if (wheelPanel) {
+      wheelPanel.classList.remove("wheel-visible");
+      wheelPanel.hidden = true;
+      wheelPanel.setAttribute("aria-hidden", "true");
+    }
+    if (spinAnimationId != null) {
+      cancelAnimationFrame(spinAnimationId);
+      spinAnimationId = null;
+    }
   }
 
   function showView(viewName) {
@@ -318,7 +353,21 @@
       panelDuration = typeof msg.panelDuration === "number" ? msg.panelDuration : 3;
       settingsChanged = true;
     }
-    
+    if (typeof msg.nowPlayingPosition !== "undefined") {
+      var position = msg.nowPlayingPosition === "bottom-left" ? "bottom-left" : "top-left";
+      if (container) {
+        container.classList.remove("position-top-left", "position-bottom-left");
+        container.classList.add("position-" + position);
+      }
+      settingsChanged = true;
+    }
+    if (typeof msg.wheelDisplayLocation !== "undefined") {
+      wheelDisplayLocation = msg.wheelDisplayLocation || "now-playing";
+      if (wheelDisplayLocation !== "now-playing") {
+        hideWheel();
+      }
+      settingsChanged = true;
+    }
     updateInstructionView();
     
     // Update next song preview
@@ -378,6 +427,52 @@
       handleNowPlayingUpdate(msg);
     } else if (msg.type === "QUEUE_UPDATE") {
       handleQueueUpdate(msg);
+    } else if (msg.type === "SPIN_SHOW_WHEEL") {
+      if (msg.target === "now-playing" || (!msg.target && wheelDisplayLocation === "now-playing")) {
+        if (wheelPanel && wheelCanvas && typeof Winwheel !== "undefined") {
+          showWheel();
+          var segments = Array.isArray(msg.segments) ? msg.segments : [];
+          if (segments.length > 0) {
+            spinWheel = new Winwheel({
+              canvasId: "wheel-canvas",
+              numSegments: segments.length,
+              segments: buildWinwheelSegments(segments),
+              textFontSize: 12,
+              textFillStyle: "#fff",
+              strokeStyle: "rgba(0,0,0,0.3)",
+              lineWidth: 1
+            });
+          } else {
+            var ctx = wheelCanvas.getContext("2d");
+            if (ctx) ctx.clearRect(0, 0, wheelCanvas.width, wheelCanvas.height);
+            spinWheel = null;
+          }
+        }
+      }
+    } else if (msg.type === "SPIN_START") {
+      if (msg.target === "now-playing" || (!msg.target && wheelDisplayLocation === "now-playing")) {
+        if (wheelPanel && wheelCanvas && Array.isArray(msg.segments) && typeof msg.winnerIndex === "number" && typeof Winwheel !== "undefined") {
+          showWheel();
+          var segs = msg.segments;
+          spinWheel = new Winwheel({
+            canvasId: "wheel-canvas",
+            numSegments: segs.length,
+            segments: buildWinwheelSegments(segs),
+            animation: { type: "spinToStop", duration: 4, spins: 5 },
+            textFontSize: 12,
+            textFillStyle: "#fff",
+            strokeStyle: "rgba(0,0,0,0.3)",
+            lineWidth: 1
+          });
+          spinWheel.animation.stopAngle = spinWheel.getRandomForSegment(msg.winnerIndex + 1);
+          spinWheel.startAnimation();
+        }
+      }
+    } else if (msg.type === "SPIN_END") {
+      if (wheelDisplayLocation === "now-playing") {
+        hideWheel();
+      }
+      spinWheel = null;
     }
   };
 
@@ -394,6 +489,16 @@
   
   // Start with overlay hidden
   hideOverlay();
+  
+  // Initialize position (will be updated when QUEUE_UPDATE is received)
+  if (container) {
+    container.classList.add("position-top-left");
+  }
+  
+  // Initialize wheel panel as hidden
+  if (wheelPanel) {
+    hideWheel();
+  }
   
   // Request initial update after a short delay to ensure dock is ready
   setTimeout(requestInitialUpdate, 100);
