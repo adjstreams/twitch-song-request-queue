@@ -7,6 +7,10 @@
   <link rel="stylesheet" href="now-playing.css" />
 </head>
 <body>
+  <div id="now-playing-artwork" class="now-playing-artwork" aria-hidden="true" hidden></div>
+  <div id="now-playing-player" class="now-playing-player" aria-hidden="true" hidden>
+    <iframe id="now-playing-soundcloud-iframe" title="SoundCloud player" allow="autoplay"></iframe>
+  </div>
   <div id="now-playing-container" class="hidden">
     <!-- Wheel Panel -->
     <div id="wheel-panel" class="wheel-panel" aria-hidden="true" hidden>
@@ -45,7 +49,7 @@
 
     <!-- Instruction Message View -->
     <div id="view-instruction" class="view view-instruction">
-      <p class="instruction-text" id="instruction-text">Add songs using !sr &lt;youtube url&gt;</p>
+      <p class="instruction-text" id="instruction-text">Add songs using !sr &lt;youtube or soundcloud url&gt;</p>
     </div>
   </div>
 

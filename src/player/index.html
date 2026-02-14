@@ -8,7 +8,11 @@
 </head>
 <body>
   <div id="player-container">
-    <div id="player"></div>
+    <div id="soundcloud-artwork" class="soundcloud-artwork" aria-hidden="true" hidden></div>
+    <div id="player" class="media-surface"></div>
+    <div id="soundcloud-container" class="media-surface" aria-hidden="true" hidden>
+      <iframe id="soundcloud-iframe" title="SoundCloud player" allow="autoplay"></iframe>
+    </div>
   </div>
   <div id="spin-overlay" class="spin-overlay" aria-hidden="true" hidden>
     <div class="spin-overlay-wrap">
@@ -16,6 +20,7 @@
       <div class="spin-overlay-pointer" aria-hidden="true"></div>
     </div>
   </div>
+  <script src="https://w.soundcloud.com/player/api.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/1.20.4/TweenMax.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/zarocknz/javascript-winwheel@master/Winwheel.min.js"></script>
   <script src="player.js"></script>

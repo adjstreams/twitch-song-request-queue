@@ -46,7 +46,7 @@
 <body>
   <h1>Twitch Song Request Queue</h1>
   <p>
-    A simple, browser-based app for Twitch streamers: viewers request YouTube songs via chat (e.g. <code>!sr</code>),
+    A simple, browser-based app for Twitch streamers: viewers request YouTube or SoundCloud songs via chat (e.g. <code>!sr</code>),
     and you control the queue from a <strong>dock</strong> while a <strong>player</strong> page plays the videos in OBS.
   </p>
   <p>Everything runs in your browser. There is no server or account required.</p>
@@ -59,7 +59,7 @@
     </a>
     <a href="player/" class="card">
       Player
-      <small>Full-screen YouTube player for OBS. Add as a Browser Source in your scene.</small>
+      <small>Full-screen YouTube and SoundCloud player for OBS. Add as a Browser Source in your scene.</small>
     </a>
     <a href="now-playing/" class="card">
       Now Playing
@@ -88,7 +88,7 @@
       <strong>Set the channel to listen to.</strong> In the dock, click <strong>Settings</strong>. Enter your <strong>Twitch channel</strong> (the channel name viewers will type <code>!sr</code> in). Optionally set the command prefix (e.g. <code>sr</code> so the command is <code>!sr</code>). Click <strong>Save and reconnect</strong>. When it shows <strong>Connected</strong>, chat requests will be added to the queue.
     </li>
   </ol>
-  <p>Dock and player must be loaded in the same browser process (the custom dock and the Browser Source both use OBS’s browser). Viewers request songs with <code>!sr</code> and a YouTube URL, or you can paste URLs into the dock.</p>
+  <p>Dock and player must be loaded in the same browser process (the custom dock and the Browser Source both use OBS’s browser). Viewers request songs with <code>!sr</code> and a YouTube or SoundCloud URL, or you can paste URLs into the dock.</p>
 
   <h2>Report issues</h2>
   <p>

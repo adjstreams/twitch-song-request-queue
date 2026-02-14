@@ -28,9 +28,92 @@ body {
   pointer-events: auto;
 }
 
-#player {
+.soundcloud-artwork {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: #111;
+}
+
+.soundcloud-artwork::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+
+.soundcloud-artwork[aria-hidden="true"] {
+  display: none !important;
+}
+
+/* Fallback when no track artwork: gradient + SoundCloud-style look */
+.soundcloud-artwork-fallback {
+  background: linear-gradient(145deg, #1a0a06 0%, #0d0d0d 40%, #111 100%),
+    radial-gradient(ellipse 80% 60% at 50% 50%, rgba(255, 85, 0, 0.14) 0%, transparent 55%);
+  background-size: cover, 100% 100%;
+  background-position: center, center;
+}
+
+.soundcloud-artwork-fallback::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 160px;
+  height: 160px;
+  opacity: 0.22;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath fill='%23fff' d='M79.5 52.5c0-1.2-1-2.2-2.2-2.2-.4 0-.8.1-1.1.3-2.2-6.2-8-10.5-14.8-10.5-2.2 0-4.2.6-6 1.6-.2-3.2-2.8-5.7-6.1-5.7-1.2 0-2.3.3-3.3.9-2.2-3.5-6.2-5.8-10.6-5.8-6.6 0-12 5.4-12 12 0 .4 0 .8.1 1.2-3.3.6-5.8 3.5-5.8 6.9 0 3.9 3.1 7 7 7h41.5c4.8 0 8.7-3.9 8.7-8.7.1-2.2-.8-4.2-2.3-5.6z'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  pointer-events: none;
+}
+
+.soundcloud-artwork-fallback::after {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.media-surface {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
+}
+
+.media-surface[aria-hidden="true"] {
+  display: none !important;
+}
+
+#player {
+  display: block;
+}
+
+#soundcloud-container iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* SoundCloud with artwork: full-screen artwork behind, player centered and compact on top */
+#player-container.soundcloud-with-artwork #soundcloud-container {
+  position: absolute;
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(90%, 900px);
+  height: 166px;
+  z-index: 10;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  background: #111;
 }
 
 .spin-overlay {

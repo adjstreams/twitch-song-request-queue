@@ -94,14 +94,17 @@
   function sendNowPlayingUpdate(currentTime, duration) {
     var item = nowPlayingOverride || (queue.length > 0 ? queue[0] : null);
     if (item) {
-      send({
+      var payload = {
         type: "NOW_PLAYING_UPDATE",
         videoId: item.videoId,
-        title: item.label || item.title || null,
+        title: displayTitle(item),
         requestedBy: item.requestedBy || "—",
         currentTime: typeof currentTime === "number" ? currentTime : 0,
-        duration: typeof duration === "number" ? duration : 0
-      });
+        duration: typeof duration === "number" ? duration : 0,
+        source: item.source || "youtube"
+      };
+      if (item.source === "soundcloud" && item.thumbnailUrl) payload.thumbnailUrl = item.thumbnailUrl;
+      send(payload);
     } else {
       send({
         type: "NOW_PLAYING_UPDATE",
@@ -109,7 +112,8 @@
         title: null,
         requestedBy: "—",
         currentTime: 0,
-        duration: 0
+        duration: 0,
+        source: "youtube"
       });
     }
   }
@@ -119,11 +123,14 @@
     send({
       type: "QUEUE_UPDATE",
       queue: queue.map(function (item) {
-        return {
+        var out = {
           videoId: item.videoId,
-          title: item.label || item.title || null,
-          requestedBy: item.requestedBy || "—"
+          title: displayTitle(item),
+          requestedBy: item.requestedBy || "—",
+          source: item.source || "youtube"
         };
+        if (item.source === "soundcloud" && item.thumbnailUrl) out.thumbnailUrl = item.thumbnailUrl;
+        return out;
       }),
       commandPrefix: config.commandPrefix || "sr",
       displayMode: config.nowPlayingDisplayMode || "always",
@@ -131,7 +138,8 @@
       showAddMessage: config.nowPlayingShowAddMessage === true,
       panelDuration: config.nowPlayingPanelDuration || 3,
       nowPlayingPosition: config.nowPlayingPosition || "top-left",
-      wheelDisplayLocation: config.wheelDisplayLocation || "now-playing"
+      wheelDisplayLocation: config.wheelDisplayLocation || "now-playing",
+      showVideo: config.showVideo === true
     });
   }
 
@@ -243,6 +251,76 @@
     if (m) return m[1];
     m = t.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
     return m ? m[1] : null;
+  }
+
+  function extractSoundCloudUrl(text) {
+    var t = text.trim();
+    var m = t.match(/(https?:\/\/)?(www\.)?soundcloud\.com\/[^\s"'<>]+/i);
+    if (m) {
+      var url = m[0];
+      if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+      return url.split(/[)\]\s"'<>]/)[0];
+    }
+    m = t.match(/(https?:\/\/)?snd\.sc\/[^\s"'<>]+/i);
+    if (m) {
+      var shortUrl = m[0];
+      if (!/^https?:\/\//i.test(shortUrl)) shortUrl = "https://" + shortUrl;
+      return shortUrl.split(/[)\]\s"'<>]/)[0];
+    }
+    return null;
+  }
+
+  /** Canonical track URL for oEmbed/cache: strip query and hash so metadata is stable. */
+  function normalizeSoundCloudTrackUrl(url) {
+    if (!url || typeof url !== "string") return url;
+    try {
+      var idx = url.indexOf("?");
+      if (idx !== -1) url = url.slice(0, idx);
+      idx = url.indexOf("#");
+      if (idx !== -1) url = url.slice(0, idx);
+      return url.trim() || null;
+    } catch (_) {
+      return url;
+    }
+  }
+
+  /** Derive a display title from SoundCloud URL path: /artist-slug/track-slug -> "Track Title by Artist Name". */
+  function parseSoundCloudUrlForTitle(url) {
+    if (!url || typeof url !== "string") return null;
+    try {
+      var path = url;
+      var domain = "soundcloud.com/";
+      var i = path.toLowerCase().indexOf(domain);
+      if (i !== -1) path = path.slice(i + domain.length);
+      var q = path.indexOf("?");
+      if (q !== -1) path = path.slice(0, q);
+      var h = path.indexOf("#");
+      if (h !== -1) path = path.slice(0, h);
+      var segments = path.split("/").filter(function (s) { return s.length > 0; });
+      function humanize(slug) {
+        return slug.replace(/-/g, " ").replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+      }
+      if (segments.length >= 2) return humanize(segments[1]) + " by " + humanize(segments[0]);
+      if (segments.length === 1) return humanize(segments[0]);
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function parseMediaUrl(text) {
+    var yt = extractVideoId(text);
+    if (yt) return { source: "youtube", id: yt };
+    var sc = extractSoundCloudUrl(text);
+    if (sc) return { source: "soundcloud", id: sc };
+    return null;
+  }
+
+  function thumbnailForItem(item) {
+    if (!item) return "";
+    if (item.source === "soundcloud" && item.thumbnailUrl) return item.thumbnailUrl;
+    if (item.source === "soundcloud") return "";
+    return "https://img.youtube.com/vi/" + (item.videoId || "") + "/mqdefault.jpg";
   }
 
   function thumbnailUrl(videoId) {
@@ -365,36 +443,89 @@
     tryNextFallback(0);
   }
 
+  var soundcloudMetaCache = {};
+
+  function fetchSoundCloudMeta(trackUrl, callback) {
+    var canonicalUrl = normalizeSoundCloudTrackUrl(trackUrl) || trackUrl;
+    if (soundcloudMetaCache[canonicalUrl]) {
+      var c = soundcloudMetaCache[canonicalUrl];
+      return callback(c.title, c.thumbnailUrl);
+    }
+    var oembedUrl = "https://soundcloud.com/oembed?format=json&url=" + encodeURIComponent(canonicalUrl);
+    var proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(oembedUrl);
+    fetch(proxyUrl)
+      .then(function (res) { return res.ok ? res.text() : Promise.reject(new Error("oembed failed")); })
+      .then(function (text) {
+        try {
+          var data = JSON.parse(text);
+          var title = data && typeof data.title === "string" && data.title.trim() ? data.title.trim() : null;
+          if (!title && data && typeof data.author_name === "string") title = "By " + data.author_name;
+          if (!title) title = parseSoundCloudUrlForTitle(canonicalUrl);
+          var thumbnailUrl = data && typeof data.thumbnail_url === "string" ? data.thumbnail_url : undefined;
+          soundcloudMetaCache[canonicalUrl] = { title: title, thumbnailUrl: thumbnailUrl };
+          callback(title, thumbnailUrl);
+        } catch (_) {
+          var fallbackTitle = parseSoundCloudUrlForTitle(canonicalUrl);
+          soundcloudMetaCache[canonicalUrl] = { title: fallbackTitle, thumbnailUrl: undefined };
+          callback(fallbackTitle, undefined);
+        }
+      })
+      .catch(function () {
+        var fallbackTitle = parseSoundCloudUrlForTitle(canonicalUrl);
+        soundcloudMetaCache[canonicalUrl] = { title: fallbackTitle, thumbnailUrl: undefined };
+        callback(fallbackTitle, undefined);
+      });
+  }
+
   function displayTitle(item) {
-    return (item && (item.title || item.label || item.videoId)) || "—";
+    if (!item) return "—";
+    if (item.source === "soundcloud" && item.videoId) {
+      return item.title || item.label || parseSoundCloudUrlForTitle(item.videoId) || item.videoId;
+    }
+    return item.title || item.label || item.videoId || "—";
   }
 
   function ensureTitlesThenRefresh() {
     queue.forEach(function (item) {
-      if (item.title !== undefined) return;
-      fetchVideoTitle(item.videoId, function (title) {
-        item.title = title !== null ? title : item.videoId;
-        updateNowPlaying();
-        renderQueue();
-      });
+      if (item.source === "soundcloud") {
+        if (item.title !== undefined && item.title !== null) return;
+        fetchSoundCloudMeta(item.videoId, function (title, thumbnailUrl) {
+          item.title = title !== null ? title : (parseSoundCloudUrlForTitle(item.videoId) || item.videoId);
+          if (thumbnailUrl) item.thumbnailUrl = thumbnailUrl;
+          updateNowPlaying();
+          renderQueue();
+        });
+      } else {
+        if (item.title !== undefined) return;
+        fetchVideoTitle(item.videoId, function (title) {
+          item.title = title !== null ? title : item.videoId;
+          updateNowPlaying();
+          renderQueue();
+        });
+      }
     });
   }
 
-  function isInQueue(videoId) {
-    if (!videoId || typeof videoId !== "string") return false;
-    return queue.some(function (item) { return item.videoId === videoId; });
+  function isInQueue(source, id) {
+    if (!id || typeof id !== "string") return false;
+    if (source === "soundcloud") id = normalizeSoundCloudTrackUrl(id) || id;
+    return queue.some(function (item) {
+      var itemId = (item.source || "youtube") === "soundcloud" && item.videoId ? normalizeSoundCloudTrackUrl(item.videoId) || item.videoId : item.videoId;
+      return (item.source || "youtube") === source && itemId === id;
+    });
   }
 
-  function addToQueue(videoId, requestedBy) {
-    if (isInQueue(videoId)) return false;
-    queue.push({ videoId: videoId, requestedBy: requestedBy || "Manual Add" });
+  function addToQueue(source, id, requestedBy) {
+    if (source === "soundcloud" && id) id = normalizeSoundCloudTrackUrl(id) || id;
+    if (isInQueue(source, id)) return false;
+    queue.push({ source: source || "youtube", videoId: id, requestedBy: requestedBy || "Manual Add" });
     persistQueue();
     renderQueue();
     updateNowPlaying();
     updateQueueCount();
     ensureTitlesThenRefresh();
     if (playerConnected && queue.length === 1 && getConfig().autoplayWhenEmpty) {
-      sendLoadAndPlay(queue[0].videoId);
+      sendLoadAndPlay(queue[0]);
     }
     return true;
   }
@@ -402,7 +533,9 @@
   function persistQueue() {
     try {
       localStorage.setItem(STORAGE_KEY_QUEUE, JSON.stringify(queue.map(function (q) {
-        return { videoId: q.videoId, requestedBy: q.requestedBy || "—", title: q.title };
+        var out = { videoId: q.videoId, requestedBy: q.requestedBy || "—", title: q.title, source: q.source || "youtube" };
+        if (q.thumbnailUrl) out.thumbnailUrl = q.thumbnailUrl;
+        return out;
       })));
     } catch (_) {}
   }
@@ -414,8 +547,14 @@
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
           queue = parsed.map(function (item) {
-            if (typeof item === "string") return { videoId: item, requestedBy: "—" };
-            return { videoId: item.videoId, requestedBy: item.requestedBy || "—", title: item.title };
+            if (typeof item === "string") return { videoId: item, requestedBy: "—", source: "youtube" };
+            return {
+              videoId: item.videoId,
+              requestedBy: item.requestedBy || "—",
+              title: item.title,
+              source: item.source === "soundcloud" ? "soundcloud" : "youtube",
+              thumbnailUrl: item.thumbnailUrl || undefined
+            };
           });
         }
         renderQueue();
@@ -431,13 +570,16 @@
     if (nowPlayingThumb) {
       nowPlayingThumb.innerHTML = "";
       if (item) {
-        var img = document.createElement("img");
-        img.src = thumbnailUrl(item.videoId);
-        img.alt = "";
-        nowPlayingThumb.appendChild(img);
+        var thumbSrc = thumbnailForItem(item);
+        if (thumbSrc) {
+          var img = document.createElement("img");
+          img.src = thumbSrc;
+          img.alt = "";
+          nowPlayingThumb.appendChild(img);
+        }
       }
     }
-    if (nowPlayingTitle) nowPlayingTitle.textContent = item ? (item.label || item.title || item.videoId) : "—";
+    if (nowPlayingTitle) nowPlayingTitle.textContent = displayTitle(item);
     if (nowPlayingRequestedBy) nowPlayingRequestedBy.textContent = item ? "Requested by " + (item.requestedBy || "—") : "Requested by —";
     if (queue.length === 0 && progressFill && progressCurrent && progressDuration) {
       progressFill.style.width = "0%";
@@ -467,7 +609,7 @@
     if (index <= 0 || index >= queue.length) return;
     var item = queue.splice(index, 1)[0];
     queue.unshift(item);
-    sendLoadAndPlay(queue[0].videoId);
+    sendLoadAndPlay(queue[0]);
     persistQueue();
     renderQueue();
     updateNowPlaying();
@@ -483,7 +625,7 @@
     updateNowPlaying();
     updateQueueCount();
     if (wasFirst && playerConnected) {
-      if (queue.length > 0) sendLoadAndPlay(queue[0].videoId);
+      if (queue.length > 0) sendLoadAndPlay(queue[0]);
       else {
         lastProgressDuration = 0;
         send({ type: "CLEAR" });
@@ -504,7 +646,7 @@
     var firstItemIsPlaying = !nowPlayingOverride && queue.length > 0 && lastProgressDuration > 0;
     var startIndex = firstItemIsPlaying ? 1 : 0;
     return queue.slice(startIndex).map(function (item) {
-      return { videoId: item.videoId, label: displayTitle(item) };
+      return { source: item.source || "youtube", videoId: item.videoId, label: displayTitle(item) };
     });
   }
 
@@ -553,7 +695,7 @@
       var thumb = document.createElement("div");
       thumb.className = "queue-item-thumb";
       var img = document.createElement("img");
-      img.src = thumbnailUrl(item.videoId);
+      img.src = thumbnailForItem(item) || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='68'/%3E";
       img.alt = "";
       thumb.appendChild(img);
       var body = document.createElement("div");
@@ -695,8 +837,8 @@
         persistQueue();
         renderQueue();
         updateQueueCount();
-        nowPlayingOverride = { videoId: winnerItem.videoId, label: winnerItem.title || winnerItem.videoId, requestedBy: "Shuffle" };
-        sendLoadAndPlay(winnerItem.videoId);
+        nowPlayingOverride = { videoId: winnerItem.videoId, label: winnerItem.title || winnerItem.videoId, requestedBy: "Shuffle", source: winnerItem.source || "youtube", thumbnailUrl: winnerItem.thumbnailUrl };
+        sendLoadAndPlay(winnerItem);
         
         // Hide wheel after a delay
         setTimeout(function() {
@@ -708,7 +850,7 @@
           nowPlayingOverride = null;
           updateNowPlaying();
           updateQueueCount();
-          if (queue.length > 0) sendLoadAndPlay(queue[0].videoId);
+          if (queue.length > 0) sendLoadAndPlay(queue[0]);
           else {
             lastProgressDuration = 0;
             send({ type: "CLEAR" });
@@ -720,7 +862,7 @@
           renderQueue();
           updateNowPlaying();
           updateQueueCount();
-          if (queue.length > 0) sendLoadAndPlay(queue[0].videoId);
+          if (queue.length > 0) sendLoadAndPlay(queue[0]);
           else {
             lastProgressDuration = 0;
             send({ type: "CLEAR" });
@@ -765,13 +907,18 @@
     send({ type: "SEEK", timeSeconds: t });
   }
 
-  function sendLoadAndPlay(videoId) {
-    if (!playerConnected) return;
+  function sendLoadAndPlay(item) {
+    if (!playerConnected || !item) return;
+    var source = item.source || "youtube";
+    var id = item.videoId || item.id;
+    if (!id) return;
     var c = getConfig();
     if (c.showVideo) {
       send({ type: "SET_VIDEO_VISIBLE", visible: true });
     }
-    send({ type: "LOAD_VIDEO", videoId: videoId });
+    var payload = { type: "LOAD_MEDIA", source: source, id: id };
+    if (source === "soundcloud" && item.thumbnailUrl) payload.thumbnailUrl = item.thumbnailUrl;
+    send(payload);
     send({ type: "PLAY" });
   }
 
@@ -783,7 +930,7 @@
     // load and play it. This handles the case when autoplay is disabled and a video was just added.
     // Otherwise, resume playback of the current video.
     if (queue.length > 0 && lastProgressDuration === 0) {
-      sendLoadAndPlay(queue[0].videoId);
+      sendLoadAndPlay(queue[0]);
     } else {
       // If there's a current video (override or queue[0]), resume playback instead of restarting
       // The player's PLAY handler will resume if paused, or play if ended/cued
@@ -805,7 +952,7 @@
       updateNowPlaying();
       updateQueueCount();
       if (queue.length > 0) {
-        sendLoadAndPlay(queue[0].videoId);
+        sendLoadAndPlay(queue[0]);
       } else {
         lastProgressDuration = 0;
         send({ type: "CLEAR" });
@@ -825,8 +972,8 @@
     }
     ComfyJS.onCommand = function (user, command, message, flags, extra) {
       if (command !== config.commandPrefix) return;
-      var videoId = extractVideoId(message || "");
-      if (videoId) addToQueue(videoId, user || "—");
+      var parsed = parseMediaUrl(message || "");
+      if (parsed) addToQueue(parsed.source, parsed.id, user || "—");
     };
     ComfyJS.onConnected = function () {
       twitchConnectionState = "connected";
@@ -848,15 +995,15 @@
   }
 
   addUrlBtn.addEventListener("click", function () {
-    var videoId = extractVideoId(urlInputEl.value);
-    if (videoId) {
-      if (addToQueue(videoId)) {
+    var parsed = parseMediaUrl(urlInputEl.value);
+    if (parsed) {
+      if (addToQueue(parsed.source, parsed.id, "Manual Add")) {
         urlInputEl.value = "";
       } else {
         alert("This song is already in the queue.");
       }
     } else {
-      alert("Paste a YouTube URL: https://www.youtube.com/watch?v=VIDEO_ID or https://youtu.be/VIDEO_ID");
+      alert("Paste a YouTube or SoundCloud URL.");
     }
   });
 
@@ -953,7 +1100,7 @@
       var segments = getWheelSegments();
       if (segments.length === 0) return;
       var winnerIndex = Math.floor(Math.random() * segments.length);
-      spinWinnerItem = { videoId: segments[winnerIndex].videoId, label: segments[winnerIndex].label };
+      spinWinnerItem = { source: segments[winnerIndex].source, videoId: segments[winnerIndex].videoId, label: segments[winnerIndex].label };
       var cfg = getConfig();
       var startInMs = 80;
       var stopAngle = null;
@@ -1001,15 +1148,16 @@
       if (!spinWinnerItem) return;
       var videoId = spinWinnerItem.videoId;
       var label = spinWinnerItem.label;
-      var item = queue.find(function (q) { return q.videoId === videoId; });
+      var source = spinWinnerItem.source || "youtube";
+      var item = queue.find(function (q) { return (q.source || "youtube") === source && q.videoId === videoId; });
       if (item) {
         queue.splice(queue.indexOf(item), 1);
         persistQueue();
         renderQueue();
         updateQueueCount();
       }
-      nowPlayingOverride = { videoId: videoId, label: label, requestedBy: item ? (item.requestedBy || "—") : "Spin" };
-      sendLoadAndPlay(videoId);
+      nowPlayingOverride = { videoId: videoId, label: label, requestedBy: item ? (item.requestedBy || "—") : "Spin", source: (item || spinWinnerItem).source || "youtube", thumbnailUrl: (item || spinWinnerItem).thumbnailUrl };
+      sendLoadAndPlay(spinWinnerItem);
       var cfg = getConfig();
       send({ type: "SPIN_END", target: cfg.wheelDisplayLocation });
       spinWinnerItem = null;
@@ -1055,6 +1203,7 @@
       saveConfigWithDefaults({ showVideo: c.showVideo });
       updateShowVideoButton();
       updateVideoVisibility();
+      sendQueueUpdate(); // so Now Playing overlay gets showVideo and hides/shows artwork+embed
     });
   }
 

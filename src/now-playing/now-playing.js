@@ -6,6 +6,9 @@
 
   var bc = new BroadcastChannel(BC_NAME);
   var container = document.getElementById("now-playing-container");
+  var artworkEl = document.getElementById("now-playing-artwork");
+  var playerWrapEl = document.getElementById("now-playing-player");
+  var soundcloudIframeEl = document.getElementById("now-playing-soundcloud-iframe");
   var currentView = document.getElementById("view-current");
   var nextView = document.getElementById("view-next");
   var instructionView = document.getElementById("view-instruction");
@@ -45,6 +48,17 @@
   var wheelDisplayLocation = "now-playing";
   var WHEEL_COLORS = ["#a855f7", "#7c3aed", "#6d28d9", "#5b21b6", "#4c1d95"];
   var spinWheel = null;
+  var showVideo = false; // set from QUEUE_UPDATE; hide artwork/embed until we know eye state
+  var lastEmbeddedTrackUrl = null; // only reload SoundCloud iframe when track changes
+
+  function normalizeTrackUrl(url) {
+    if (!url || typeof url !== "string") return url;
+    var i = url.indexOf("?");
+    if (i !== -1) url = url.slice(0, i);
+    i = url.indexOf("#");
+    if (i !== -1) url = url.slice(0, i);
+    return url.trim() || url;
+  }
 
   function buildWinwheelSegments(segs) {
     return segs.map(function (s, i) {
@@ -59,6 +73,13 @@
     var m = Math.floor(seconds / 60);
     var s = Math.floor(seconds % 60);
     return m + ":" + (s < 10 ? "0" : "") + s;
+  }
+
+  function thumbnailForItem(song) {
+    if (!song) return "";
+    if (song.source === "soundcloud" && song.thumbnailUrl) return song.thumbnailUrl;
+    if (song.source === "soundcloud") return "";
+    return "https://img.youtube.com/vi/" + (song.videoId || "") + "/mqdefault.jpg";
   }
 
   function thumbnailUrl(videoId) {
@@ -127,10 +148,13 @@
     
     if (currentThumb) {
       currentThumb.innerHTML = "";
-      var img = document.createElement("img");
-      img.src = thumbnailUrl(song.videoId);
-      img.alt = "";
-      currentThumb.appendChild(img);
+      var thumbSrc = thumbnailForItem(song);
+      if (thumbSrc) {
+        var img = document.createElement("img");
+        img.src = thumbSrc;
+        img.alt = "";
+        currentThumb.appendChild(img);
+      }
     }
 
     if (typeof timeSeconds === "number" && typeof durationSeconds === "number" && durationSeconds > 0) {
@@ -157,17 +181,24 @@
     
     if (nextThumb) {
       nextThumb.innerHTML = "";
-      var img = document.createElement("img");
-      img.src = thumbnailUrl(nextSong.videoId);
-      img.alt = "";
-      nextThumb.appendChild(img);
+      var thumbSrc = thumbnailForItem(nextSong);
+      if (thumbSrc) {
+        var img = document.createElement("img");
+        img.src = thumbSrc;
+        img.alt = "";
+        nextThumb.appendChild(img);
+      }
     }
   }
 
   function updateInstructionView() {
     if (instructionText) {
-      instructionText.textContent = "Add songs using !" + commandPrefix + " <youtube url>";
+      instructionText.textContent = "Add songs using !" + commandPrefix + " <youtube or soundcloud url>";
     }
+  }
+
+  function hasFullScreenArtwork() {
+    return currentSong && currentSong.source === "soundcloud" && currentSong.thumbnailUrl;
   }
 
   function buildEnabledPanels() {
@@ -175,27 +206,33 @@
     var hasCurrent = currentSong !== null;
     var hasNext = queue.length > 1 && showNext;
     var shouldShowAddMessage = showAddMessage;
-    
+
+    // When full-screen artwork is showing, keep only the now-playing bar so the "player" is always visible
+    if (hasFullScreenArtwork()) {
+      enabledPanels.push("current");
+      return;
+    }
+
     // Always include current if available
     if (hasCurrent) {
       enabledPanels.push("current");
     }
-    
+
     // Include next if enabled and available
     if (hasNext) {
       enabledPanels.push("next");
     }
-    
+
     // Include instruction if enabled
     if (shouldShowAddMessage) {
       enabledPanels.push("instruction");
     }
-    
+
     // If no panels enabled but we have a current song, show it
     if (enabledPanels.length === 0 && hasCurrent) {
       enabledPanels.push("current");
     }
-    
+
     // If still no panels, show instruction as fallback
     if (enabledPanels.length === 0) {
       enabledPanels.push("instruction");
@@ -291,16 +328,20 @@
     // Only set currentSong if there's actually a videoId
     if (msg.videoId && msg.videoId.trim() !== "") {
       var newVideoId = msg.videoId;
-      if (!currentSong || currentSong.videoId !== newVideoId) {
+      var normNew = normalizeTrackUrl(newVideoId);
+      var normCurrent = currentSong ? normalizeTrackUrl(currentSong.videoId) : "";
+      if (!currentSong || normCurrent !== normNew) {
         songChanged = true;
       }
-      
+
       currentSong = {
         videoId: newVideoId,
         title: msg.title || null,
-        requestedBy: msg.requestedBy || "—"
+        requestedBy: msg.requestedBy || "—",
+        source: msg.source || "youtube",
+        thumbnailUrl: msg.thumbnailUrl || undefined
       };
-      
+
       updateCurrentSongView(currentSong, msg.currentTime, msg.duration);
     } else {
       // No song playing
@@ -309,6 +350,61 @@
       }
       currentSong = null;
       updateCurrentSongView(null, 0, 0);
+    }
+
+    // Only update artwork and SoundCloud embed when the track actually changed (stops iframe flashing on progress updates)
+    if (songChanged) {
+      if (artworkEl) {
+        var thumb = currentSong && currentSong.source === "soundcloud" && currentSong.thumbnailUrl ? currentSong.thumbnailUrl.trim() : "";
+        if (thumb && showVideo) {
+          artworkEl.style.backgroundImage = "url(" + thumb + ")";
+          artworkEl.removeAttribute("aria-hidden");
+          artworkEl.hidden = false;
+        } else {
+          artworkEl.style.backgroundImage = "";
+          artworkEl.setAttribute("aria-hidden", "true");
+          artworkEl.hidden = true;
+        }
+      }
+
+      if (playerWrapEl && soundcloudIframeEl) {
+        if (showVideo && currentSong && currentSong.source === "soundcloud" && currentSong.videoId) {
+          var trackUrl = currentSong.videoId.indexOf("http") === 0 ? currentSong.videoId : "https://soundcloud.com/" + currentSong.videoId;
+          var normTrackUrl = normalizeTrackUrl(trackUrl);
+          if (normTrackUrl !== lastEmbeddedTrackUrl) {
+            lastEmbeddedTrackUrl = normTrackUrl;
+            soundcloudIframeEl.src = "https://w.soundcloud.com/player/?url=" + encodeURIComponent(trackUrl) + "&auto_play=false";
+          }
+          playerWrapEl.removeAttribute("aria-hidden");
+          playerWrapEl.hidden = false;
+        } else {
+          lastEmbeddedTrackUrl = null;
+          soundcloudIframeEl.src = "";
+          playerWrapEl.setAttribute("aria-hidden", "true");
+          playerWrapEl.hidden = true;
+        }
+      }
+
+      if (!currentSong && artworkEl) {
+        artworkEl.style.backgroundImage = "";
+        artworkEl.setAttribute("aria-hidden", "true");
+        artworkEl.hidden = true;
+      }
+    }
+
+    // Always enforce eye state: when showVideo is off, keep artwork and player hidden (every message)
+    if (!showVideo) {
+      if (artworkEl) {
+        artworkEl.style.backgroundImage = "";
+        artworkEl.setAttribute("aria-hidden", "true");
+        artworkEl.hidden = true;
+      }
+      if (playerWrapEl && soundcloudIframeEl) {
+        soundcloudIframeEl.src = "";
+        lastEmbeddedTrackUrl = null;
+        playerWrapEl.setAttribute("aria-hidden", "true");
+        playerWrapEl.hidden = true;
+      }
     }
     
     // Only restart rotation if song actually changed, not on every progress update
@@ -369,6 +465,28 @@
       }
       settingsChanged = true;
     }
+    if (typeof msg.showVideo !== "undefined") {
+      var newShowVideo = msg.showVideo === true;
+      var wasShowingVideo = showVideo;
+      showVideo = newShowVideo;
+      settingsChanged = true;
+      if (!showVideo) {
+        applyShowVideo(false);
+      } else if (!wasShowingVideo && showVideo && currentSong && currentSong.source === "soundcloud") {
+        if (artworkEl && currentSong.thumbnailUrl) {
+          artworkEl.style.backgroundImage = "url(" + currentSong.thumbnailUrl.trim() + ")";
+          artworkEl.removeAttribute("aria-hidden");
+          artworkEl.hidden = false;
+        }
+        if (playerWrapEl && soundcloudIframeEl && currentSong.videoId) {
+          var trackUrl = currentSong.videoId.indexOf("http") === 0 ? currentSong.videoId : "https://soundcloud.com/" + currentSong.videoId;
+          lastEmbeddedTrackUrl = trackUrl;
+          soundcloudIframeEl.src = "https://w.soundcloud.com/player/?url=" + encodeURIComponent(trackUrl) + "&auto_play=false";
+          playerWrapEl.removeAttribute("aria-hidden");
+          playerWrapEl.hidden = false;
+        }
+      }
+    }
     updateInstructionView();
     
     // Update next song preview
@@ -420,9 +538,31 @@
     }
   }
 
+  function applyShowVideo(visible) {
+    showVideo = visible === true;
+    if (!showVideo) {
+      if (artworkEl) {
+        artworkEl.style.backgroundImage = "";
+        artworkEl.setAttribute("aria-hidden", "true");
+        artworkEl.hidden = true;
+      }
+      if (playerWrapEl && soundcloudIframeEl) {
+        soundcloudIframeEl.src = "";
+        lastEmbeddedTrackUrl = null;
+        playerWrapEl.setAttribute("aria-hidden", "true");
+        playerWrapEl.hidden = true;
+      }
+    }
+  }
+
   bc.onmessage = function (e) {
     var msg = e.data;
     if (!msg || typeof msg.type !== "string") return;
+
+    if (msg.type === "SET_VIDEO_VISIBLE") {
+      applyShowVideo(msg.visible);
+      return;
+    }
 
     if (msg.type === "NOW_PLAYING_UPDATE") {
       handleNowPlayingUpdate(msg);
